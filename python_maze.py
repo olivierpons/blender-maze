@@ -117,7 +117,7 @@ class Maze:
 
     def display_maze_3d(self):
         if len(self.dimensions_sizes) != 3:
-            self.out("Cette méthode supporte uniquement des labyrinthes 3D.")
+            self.out("This method only supports 3D mazes.")
             return
 
         x_size, y_size, z_size = self.dimensions_sizes

@@ -69,34 +69,34 @@ class OBJECT_OT_add_shape(bpy.types.Operator):
             bpy.context.view_layer.objects.active = created_objects[0]
             bpy.ops.object.join()
 
-            # Passage en mode édition
+            # Switch to edit mode
             bpy.ops.object.mode_set(mode='EDIT')
 
-            # Préparation pour utiliser bmesh et fusionner par distance
+            # Prepare to use bmesh and merge by distance
             bm = bmesh.from_edit_mesh(bpy.context.active_object.data)
 
-            # Compter les sommets avant la fusion
+            # Count vertices before merging
             verts_before = len(bm.verts)
 
-            # Fusionner les sommets par distance
+            # Merge vertices by distance
             result = bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)
 
-            # Compter les sommets après la fusion
+            # Count vertices after merging
             verts_after = len(bm.verts)
 
-            # Calculer le nombre de sommets supprimés
+            # Calculate the number of vertices removed
             verts_removed = verts_before - verts_after
 
-            # Mise à jour du maillage pour refléter les changements
+            # Update the mesh to reflect changes
             bmesh.update_edit_mesh(bpy.context.active_object.data)
 
-            # Retourner en mode objet
+            # Switch back to object mode
             bpy.ops.object.mode_set(mode='OBJECT')
 
-            # Rafraîchir la vue
+            # Refresh the view
             bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
 
-            print(f"Sommets fusionnés (supprimés) : {verts_removed}")
+            print(f"Vertices merged (removed): {verts_removed}")
 
         c_l = []
 
