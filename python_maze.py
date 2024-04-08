@@ -27,9 +27,37 @@ class Maze:
             coordinates.reverse()
             return tuple(coordinates)
 
-    def __init__(self, *dimensions_sizes):
-        self.dimensions_sizes = dimensions_sizes
+        def xp_xn_yp_yn_zp_zn(self):
+            x, y, z = self.spatial(self.id, self.dimensions_sizes)
+            x_max, y_max, z_max = self.dimensions_sizes
+            neighbor_ids = {
+                'xp': self.id + 1 if x + 1 < x_max else None,
+                'xn': self.id - 1 if x > 0 else None,
+                'yp': self.id + x_max if y + 1 < y_max else None,
+                'yn': self.id - x_max if y > 0 else None,
+                'zp': self.id + (x_max * y_max) if z + 1 < z_max else None,
+                'zn': self.id - (x_max * y_max) if z > 0 else None,
+            }
+            return (
+                neighbor_ids['xp'] in self.links,
+                neighbor_ids['xn'] in self.links,
+                neighbor_ids['yp'] in self.links,
+                neighbor_ids['yn'] in self.links,
+                neighbor_ids['zp'] in self.links,
+                neighbor_ids['zn'] in self.links,
+            )
+
+    def __init__(self, sizes, output_file=None):
+        self.dimensions_sizes = sizes
         self.cells = self.generate_cells()
+        self.output_file = output_file
+
+    def out(self, content):
+        if self.output_file:
+            with open(self.output_file, 'a') as file:
+                file.write(f"{content}\n")
+        else:
+            print(content)
 
     def generate_cells(self):
         total_cells = 1
@@ -89,22 +117,27 @@ class Maze:
 
     def display_maze_3d(self):
         if len(self.dimensions_sizes) != 3:
-            print("Cette méthode supporte uniquement des labyrinthes 3D.")
+            self.out("Cette méthode supporte uniquement des labyrinthes 3D.")
             return
 
         x_size, y_size, z_size = self.dimensions_sizes
         layer_size = x_size * y_size
 
         for layer in range(z_size):
-            print(f"Layer {layer + 1}:")
-            print("+" + "-------+" * x_size)
+            self.out(f"Layer {layer + 1}:")
+            self.out("+" + "-------+" * x_size)
             for y in range(y_size):
                 top = "|"
                 bottom = "+"
                 for x in range(x_size):
                     cell_id = x + y * x_size + layer * layer_size
                     cell = self.cells[cell_id]
-                    right = "|" if ((cell_id + 1) % x_size) == 0 or (cell_id + 1) not in cell.links else " "
+                    right = (
+                        "|"
+                        if ((cell_id + 1) % x_size) == 0
+                        or (cell_id + 1) not in cell.links
+                        else " "
+                    )
                     bottom += (
                         "       +"
                         if (cell_id + x_size) in cell.links
@@ -122,19 +155,19 @@ class Maze:
                     else:
                         vert_marker += " "
                     top += f" {vert_marker.strip():^5} " + right
-                print(top)
-                print(bottom)
+                self.out(top)
+                self.out(bottom)
 
     def dump(self):
         if len(self.dimensions_sizes) != 3:
-            print("Cette méthode supporte uniquement des labyrinthes 3D.")
+            self.out("Cette méthode supporte uniquement des labyrinthes 3D.")
             return
 
         x_size, y_size, z_size = self.dimensions_sizes
         layer_size = x_size * y_size
 
         for layer in range(z_size):
-            print(f"Layer {layer + 1}:")
+            self.out(f"Layer {layer + 1}:")
             for y in range(y_size):
                 for x in range(x_size):
                     _id = x + y * x_size + layer * layer_size
@@ -142,12 +175,13 @@ class Maze:
                     coords = Maze.Cell.spatial(_id, self.dimensions_sizes)
                     links = [link_id for link_id in cell.links]
                     walls = [wall_id for wall_id in cell.not_done]
-                    print(f"Cell {coords} (ID: {_id}) - Liens: {links}, Murs: {walls}")
-        print("\n")
+                    self.out(f"Cell {coords} (ID: {_id}) - Liens: {links}, Murs: {walls}")
+        self.out("\n")
 
 
-# random.seed(42)
-maze_3d = Maze(10, 3, 3)
-maze_3d.generate()
-maze_3d.display_maze_3d()
-# maze_3d.dump()
+if __name__ == "__main__":
+    # random.seed(42)
+    maze = Maze([10, 3, 3], "/home/olivier/projects/blender-maze/out.txt")
+    maze.generate()
+    maze.display_maze_3d()
+    # maze_3d.dump()
