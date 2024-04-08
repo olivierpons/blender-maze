@@ -1,8 +1,6 @@
 import random
 
 
-import random
-
 class Maze:
     class Cell:
         def __init__(self, cell_id, dimensions_sizes):
@@ -61,8 +59,8 @@ class Maze:
                 if 0 <= pos_in_dim < size:
                     neighbor_id += delta
                     total_cells = 1
-                    for size in self.dimensions_sizes:
-                        total_cells *= size
+                    for sz in self.dimensions_sizes:
+                        total_cells *= sz
                     if 0 <= neighbor_id < total_cells:
                         neighbors.append(neighbor_id)
         return neighbors
@@ -94,38 +92,62 @@ class Maze:
             print("Cette méthode supporte uniquement des labyrinthes 3D.")
             return
 
-        x_size, y_size, z_size = self.dimensions_sizes  # Assumer un labyrinthe 3D
+        x_size, y_size, z_size = self.dimensions_sizes
         layer_size = x_size * y_size
 
         for layer in range(z_size):
             print(f"Layer {layer + 1}:")
-            print("+" + "-----+" * x_size)
+            print("+" + "-------+" * x_size)
             for y in range(y_size):
                 top = "|"
                 bottom = "+"
                 for x in range(x_size):
                     cell_id = x + y * x_size + layer * layer_size
                     cell = self.cells[cell_id]
-                    right = " " if any(((cell_id + 1) in cell.links, (
-                        cell_id in self.cells[cell_id + 1].links if (cell_id + 1) < layer_size * (
-                                    layer + 1) else False))) else "|"
-                    bottom += "     +" if any(((cell_id + x_size) in cell.links, (
-                        cell_id in self.cells[cell_id + x_size].links if (cell_id + x_size) < layer_size * (
-                                    layer + 1) else False))) else "-----+"
-                    vert_marker = "   "
-                    if layer > 0 and (cell_id - layer_size) in cell.links:
-                        vert_marker = "-{:<2}".format(layer)
-                    elif layer < z_size - 1 and (cell_id + layer_size) in cell.links:
-                        vert_marker = "+{:<2}".format(layer + 2)
-                    top += f" {vert_marker} " + right
+                    right = "|" if ((cell_id + 1) % x_size) == 0 or (cell_id + 1) not in cell.links else " "
+                    bottom += (
+                        "       +"
+                        if (cell_id + x_size) in cell.links
+                        and cell_id + x_size < len(self.cells)
+                        else "-------+"
+                    )
+                    vert_marker = " {:<2}".format(cell_id)
+                    vert_marker += "*" if len(cell.links) == 1 else " "
+                    if (cell_id - layer_size) in cell.links:
+                        vert_marker += "."
+                    else:
+                        vert_marker += " "
+                    if (cell_id + layer_size) in cell.links:
+                        vert_marker += "o"
+                    else:
+                        vert_marker += " "
+                    top += f" {vert_marker.strip():^5} " + right
                 print(top)
-                if y < y_size - 1:
-                    print(bottom)
-            print("+" + "-----+" * x_size)
-            print("\n")
+                print(bottom)
+
+    def dump(self):
+        if len(self.dimensions_sizes) != 3:
+            print("Cette méthode supporte uniquement des labyrinthes 3D.")
+            return
+
+        x_size, y_size, z_size = self.dimensions_sizes
+        layer_size = x_size * y_size
+
+        for layer in range(z_size):
+            print(f"Layer {layer + 1}:")
+            for y in range(y_size):
+                for x in range(x_size):
+                    _id = x + y * x_size + layer * layer_size
+                    cell = self.cells[_id]
+                    coords = Maze.Cell.spatial(_id, self.dimensions_sizes)
+                    links = [link_id for link_id in cell.links]
+                    walls = [wall_id for wall_id in cell.not_done]
+                    print(f"Cell {coords} (ID: {_id}) - Liens: {links}, Murs: {walls}")
+        print("\n")
 
 
-# Testing the 3D Maze
-maze_3d = Maze(10, 4, 3)
+# random.seed(42)
+maze_3d = Maze(10, 3, 3)
 maze_3d.generate()
 maze_3d.display_maze_3d()
+# maze_3d.dump()
