@@ -3,11 +3,12 @@ import random
 
 class Maze:
     class Cell:
-        def __init__(self, cell_id, dimensions_sizes):
+        def __init__(self, cell_id, dimensions_sizes, out):
             self.id = cell_id
             self.dimensions_sizes = dimensions_sizes
             self.links = set()
             self.not_done = set()
+            self.out = out
 
         def add_neighbor(self, neighbor_id):
             self.not_done.add(neighbor_id)
@@ -17,34 +18,33 @@ class Maze:
             if neighbor in self.not_done:
                 self.not_done.remove(neighbor)
 
-        @staticmethod
-        def spatial(cell_id, dimensions_sizes):
+        def spatial(self, cell_id):
             coordinates = []
             divisor = 1
-            for size in reversed(dimensions_sizes):
+            for size in self.dimensions_sizes:
                 coordinates.append((cell_id // divisor) % size)
                 divisor *= size
-            coordinates.reverse()
             return tuple(coordinates)
 
         def xp_xn_yp_yn_zp_zn(self):
-            x, y, z = self.spatial(self.id, self.dimensions_sizes)
-            x_max, y_max, z_max = self.dimensions_sizes
+            x, y, z = self.spatial(self.id)
+            x_size, y_size, z_size = self.dimensions_sizes
+            layer_size = x_size * y_size
             neighbor_ids = {
-                'xp': self.id + 1 if x + 1 < x_max else None,
-                'xn': self.id - 1 if x > 0 else None,
-                'yp': self.id + x_max if y + 1 < y_max else None,
-                'yn': self.id - x_max if y > 0 else None,
-                'zp': self.id + (x_max * y_max) if z + 1 < z_max else None,
-                'zn': self.id - (x_max * y_max) if z > 0 else None,
+                "xp": self.id + 1 if x + 1 < x_size else None,
+                "xn": self.id - 1 if x > 0 else None,
+                "yp": self.id + x_size if y + 1 < y_size else None,
+                "yn": self.id - x_size if y > 0 else None,
+                "zp": self.id + layer_size if z + 1 < z_size else None,
+                "zn": self.id - layer_size if z > 0 else None,
             }
             return (
-                neighbor_ids['xp'] in self.links,
-                neighbor_ids['xn'] in self.links,
-                neighbor_ids['yp'] in self.links,
-                neighbor_ids['yn'] in self.links,
-                neighbor_ids['zp'] in self.links,
-                neighbor_ids['zn'] in self.links,
+                neighbor_ids["xp"] in self.links,
+                neighbor_ids["xn"] in self.links,
+                neighbor_ids["yp"] in self.links,
+                neighbor_ids["yn"] in self.links,
+                neighbor_ids["zp"] in self.links,
+                neighbor_ids["zn"] in self.links,
             )
 
     def __init__(self, sizes, output_file=None):
@@ -54,7 +54,7 @@ class Maze:
 
     def out(self, content):
         if self.output_file:
-            with open(self.output_file, 'a') as file:
+            with open(self.output_file, "a") as file:
                 file.write(f"{content}\n")
         else:
             print(content)
@@ -66,7 +66,7 @@ class Maze:
 
         cells = {}
         for cell_id in range(total_cells):
-            cell = Maze.Cell(cell_id, self.dimensions_sizes)
+            cell = Maze.Cell(cell_id, self.dimensions_sizes, self.out)
             neighbors = self.calculate_neighbors(cell_id)
             for neighbor_id in neighbors:
                 cell.add_neighbor(neighbor_id)
@@ -172,10 +172,11 @@ class Maze:
                 for x in range(x_size):
                     _id = x + y * x_size + layer * layer_size
                     cell = self.cells[_id]
-                    coords = Maze.Cell.spatial(_id, self.dimensions_sizes)
                     links = [link_id for link_id in cell.links]
                     walls = [wall_id for wall_id in cell.not_done]
-                    self.out(f"Cell {coords} (ID: {_id}) - Liens: {links}, Murs: {walls}")
+                    self.out(
+                        f"Cell {cell.spatial(_id)} (ID: {_id}) - Liens: {links}, Murs: {walls}"
+                    )
         self.out("\n")
 
 

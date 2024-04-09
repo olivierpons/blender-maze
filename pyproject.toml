@@ -9,6 +9,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "==3.11.*"
 bpy = "^4.1.0"
+black = "^24.3.0"
 
 
 [build-system]
