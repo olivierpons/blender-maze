@@ -139,13 +139,13 @@ class OBJECT_OT_add_shape(bpy.types.Operator):
             out(f"Vertices merged (removed): {verts_removed}")
 
         c_l = []
-        maze = Maze([10, 5, 2], "/home/olivier/projects/blender-maze/out.txt")
+        maze = Maze([18, 15, 4], "/home/olivier/projects/blender-maze/out.txt")
         maze.generate()
         maze.display_maze_3d()
         out = maze.out
         x_size, y_size, z_size = maze.dimensions_sizes
 
-        spacing = 5
+        spacing = 1
         layer_size = x_size * y_size
         for z in range(z_size):
             for y in range(y_size):
@@ -182,7 +182,7 @@ class OBJECT_OT_add_shape(bpy.types.Operator):
                     if not zn:
                         c_l.append([center, "b"])
 
-        create_and_join_prisms(c_l, thickness=.8, distance=2.5)
+        create_and_join_prisms(c_l, thickness=.1, distance=spacing/2)
         return {"FINISHED"}
 
 
