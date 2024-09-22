@@ -2,7 +2,7 @@
 
 A Blender plugin for generating complex and customizable 3D mazes.
 
-[Français](README_FR.md)
+[Version française](README_fr.md)
 
 ## Features
 

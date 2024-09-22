@@ -2,7 +2,7 @@
 
 Un plugin Blender pour générer des labyrinthes 3D complexes et personnalisables.
 
-[English](README_EN.md)
+[English version](README_en.md)
 
 ## Fonctionnalités
 
