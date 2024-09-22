@@ -9,24 +9,44 @@ if path_to_add not in sys.path:
 from python_maze import Maze
 
 bl_info = {
-    "name": "Créateur de Forme",
+    "name": "Maze Generator",
     "author": "Olivier Pons",
-    "version": (1, 0),
+    "version": (1, 2),
     "blender": (4, 0, 1),
     "location": "View3D > Add > Mesh",
-    "description": "Crée une forme complexe à partir de cubes",
+    "description": "Generates a 3D maze",
     "warning": "",
     "doc_url": "",
     "category": "Add Mesh",
 }
 
-
-class OBJECT_OT_add_shape(bpy.types.Operator):
-    bl_idname = "mesh.add_shape"
-    bl_label = "Maze v0.1"
+class MAZE_OT_generator_popup(bpy.types.Operator):
+    bl_idname = "mesh.generate_maze_popup"
+    bl_label = "Generate Maze"
     bl_options = {"REGISTER", "UNDO"}
 
+    x_size: bpy.props.IntProperty(name="X Size", default=18, min=1, max=100)
+    y_size: bpy.props.IntProperty(name="Y Size", default=15, min=1, max=100)
+    z_size: bpy.props.IntProperty(name="Z Size", default=4, min=1, max=100)
+    thickness: bpy.props.FloatProperty(name="Wall Thickness", default=0.1, min=0.01, max=1.0)
+    spacing: bpy.props.FloatProperty(name="Cell Spacing", default=1.0, min=0.1, max=10.0)
+
     def execute(self, context):
+        self.generate_maze(context, self.x_size, self.y_size, self.z_size, self.thickness, self.spacing)
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "x_size")
+        layout.prop(self, "y_size")
+        layout.prop(self, "z_size")
+        layout.prop(self, "thickness")
+        layout.prop(self, "spacing")
+
+    def generate_maze(self, context, x_size, y_size, z_size, thickness, spacing):
         def out(msg):
             print(msg)
 
@@ -139,14 +159,12 @@ class OBJECT_OT_add_shape(bpy.types.Operator):
             out(f"Vertices merged (removed): {verts_removed}")
 
         c_l = []
-        maze = Maze([18, 15, 4], "/home/olivier/projects/blender-maze/out.txt")
+        maze = Maze([x_size, y_size, z_size], "/home/olivier/projects/blender-maze/out.txt")
         maze.generate()
         maze.display_maze_3d()
         out = maze.out
-        x_size, y_size, z_size = maze.dimensions_sizes
-
-        spacing = 1
         layer_size = x_size * y_size
+
         for z in range(z_size):
             for y in range(y_size):
                 for x in range(x_size):
@@ -177,28 +195,39 @@ class OBJECT_OT_add_shape(bpy.types.Operator):
                         c_l.append([center, "s"])
                     if not yn:
                         c_l.append([center, "n"])
-                    # if not zp: c_l.append([center, 't'])
-                    # if z == 0:
                     if not zn:
                         c_l.append([center, "b"])
 
-        create_and_join_prisms(c_l, thickness=.1, distance=spacing/2)
-        return {"FINISHED"}
+        create_and_join_prisms(c_l, thickness=thickness, distance=spacing/2)
 
+class MAZE_PT_generator_panel(bpy.types.Panel):
+    bl_label = "Maze Generator"
+    bl_idname = "MAZE_PT_generator_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Tool'
+
+    def draw(self, context):
+        layout = self.layout
+        props = context.scene.maze_generator_props
+
+        layout.prop(props, "x_size")
+        layout.prop(props, "y_size")
+        layout.prop(props, "z_size")
+        layout.prop(props, "thickness")
+        layout.prop(props, "spacing")
+        layout.operator("mesh.generate_maze")
 
 def menu_func(self, context):
-    self.layout.operator(OBJECT_OT_add_shape.bl_idname, icon="MESH_CUBE")
-
+    self.layout.operator(MAZE_OT_generator_popup.bl_idname, icon="MESH_CUBE")
 
 def register():
-    bpy.utils.register_class(OBJECT_OT_add_shape)
+    bpy.utils.register_class(MAZE_OT_generator_popup)
     bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
 
-
 def unregister():
-    bpy.utils.unregister_class(OBJECT_OT_add_shape)
+    bpy.utils.unregister_class(MAZE_OT_generator_popup)
     bpy.types.VIEW3D_MT_mesh_add.remove(menu_func)
-
 
 if __name__ == "__main__":
     register()
