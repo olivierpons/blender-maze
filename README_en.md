@@ -15,7 +15,7 @@ A Blender plugin for generating complex and customizable 3D mazes.
 
 1. Clone this repository:
    ```
-   git clone https://github.com/your-name/blender-maze.git
+   git clone https://github.com/olivierpons/blender-maze.git
    ```
 
 2. Copy the `python_maze_blender_addon.py` file to your Blender addons folder:

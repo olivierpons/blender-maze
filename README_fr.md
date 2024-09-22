@@ -15,7 +15,7 @@ Un plugin Blender pour générer des labyrinthes 3D complexes et personnalisable
 
 1. Clonez ce dépôt :
    ```
-   git clone https://github.com/votre-nom/blender-maze.git
+   git clone https://github.com/olivierpons/blender-maze.git
    ```
 
 2. Copiez le fichier `python_maze_blender_addon.py` dans le dossier des addons de Blender :
