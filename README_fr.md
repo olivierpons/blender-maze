@@ -58,6 +58,4 @@ Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
 
 ## Contact
 
-Olivier Pons - olivier.pons@gmail.com
-
-Lien du projet : [https://github.com/votre-nom/blender-maze](https://github.com/votre-nom/blender-maze)
+Lien du projet : [https://github.com/olivierpons/blender-maze](https://github.com/olivierpons/blender-maze)
