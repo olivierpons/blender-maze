@@ -1,6 +1,6 @@
 # Blender Maze Generator / Générateur de Labyrinthe pour Blender
 
-[English](README_EN.md) | [Français](README_FR.md)
+[English](README_en.md) | [Français](README_fr.md)
 
 This project is a Blender plugin for generating complex and customizable 3D mazes.
 
