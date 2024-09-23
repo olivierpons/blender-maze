@@ -53,7 +53,8 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
         layout.prop(self, "thickness")
         layout.prop(self, "spacing")
 
-    def generate_maze(self, context, x_size, y_size, z_size, thickness, spacing):
+    @staticmethod
+    def generate_maze(context, x_size, y_size, z_size, thickness, spacing):
         def out(msg):
             print(msg)
 

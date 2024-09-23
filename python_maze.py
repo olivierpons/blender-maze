@@ -1,24 +1,19 @@
 import random
 import argparse
 from pathlib import PurePath, Path
+import multiprocessing as mp
+from functools import partial
 
 
 class Maze:
     class Cell:
-        def __init__(self, cell_id, dimensions_sizes, out):
+        def __init__(self, cell_id, dimensions_sizes):
             self.id = cell_id
             self.dimensions_sizes = dimensions_sizes
             self.links = set()
-            self.not_done = set()
-            self.out = out
-
-        def add_neighbor(self, neighbor_id):
-            self.not_done.add(neighbor_id)
 
         def connect(self, neighbor):
             self.links.add(neighbor)
-            if neighbor in self.not_done:
-                self.not_done.remove(neighbor)
 
         def spatial(self, cell_id):
             coordinates = []
@@ -28,31 +23,13 @@ class Maze:
                 divisor *= size
             return tuple(coordinates)
 
-        def xp_xn_yp_yn_zp_zn(self):
-            x, y, z = self.spatial(self.id)
-            x_size, y_size, z_size = self.dimensions_sizes
-            layer_size = x_size * y_size
-            neighbor_ids = {
-                "xp": self.id + 1 if x + 1 < x_size else None,
-                "xn": self.id - 1 if x > 0 else None,
-                "yp": self.id + x_size if y + 1 < y_size else None,
-                "yn": self.id - x_size if y > 0 else None,
-                "zp": self.id + layer_size if z + 1 < z_size else None,
-                "zn": self.id - layer_size if z > 0 else None,
-            }
-            return (
-                neighbor_ids["xp"] in self.links,
-                neighbor_ids["xn"] in self.links,
-                neighbor_ids["yp"] in self.links,
-                neighbor_ids["yn"] in self.links,
-                neighbor_ids["zp"] in self.links,
-                neighbor_ids["zn"] in self.links,
-            )
-
     def __init__(self, sizes, output_file=None):
         self.dimensions_sizes = sizes
         self._output_file = output_file
-        self.cells = self.generate_cells()
+        self.total_cells = 1
+        for size in self.dimensions_sizes:
+            self.total_cells *= size
+        self.cells = {}
 
     def out(self, content):
         if self._output_file:
@@ -61,19 +38,10 @@ class Maze:
         else:
             print(content)
 
-    def generate_cells(self):
-        total_cells = 1
-        for size in self.dimensions_sizes:
-            total_cells *= size
-
-        cells = {}
-        for cell_id in range(total_cells):
-            cell = Maze.Cell(cell_id, self.dimensions_sizes, self.out)
-            neighbors = self.calculate_neighbors(cell_id)
-            for neighbor_id in neighbors:
-                cell.add_neighbor(neighbor_id)
-            cells[cell_id] = cell
-        return cells
+    def get_cell(self, cell_id):
+        if cell_id not in self.cells:
+            self.cells[cell_id] = Maze.Cell(cell_id, self.dimensions_sizes)
+        return self.cells[cell_id]
 
     def calculate_neighbors(self, cell_id):
         neighbors = []
@@ -88,34 +56,103 @@ class Maze:
                 pos_in_dim = (cell_id // offset_divisor) % size + offset
                 if 0 <= pos_in_dim < size:
                     neighbor_id += delta
-                    total_cells = 1
-                    for sz in self.dimensions_sizes:
-                        total_cells *= sz
-                    if 0 <= neighbor_id < total_cells:
+                    if 0 <= neighbor_id < self.total_cells:
                         neighbors.append(neighbor_id)
         return neighbors
 
-    def generate(self):
-        stack = []
-        visited = set()
+    @staticmethod
+    def generate_section(start, end, total_cells, dimensions_sizes):
+        if start >= end or start >= total_cells:
+            return {}, set()
 
-        start = random.choice(list(self.cells.keys()))
-        stack.append(start)
-        visited.add(start)
+        cells = {}
+        visited = set()
+        stack = [random.randint(start, min(end - 1, total_cells - 1))]
+
+        def get_cell(cell_id):
+            if cell_id not in cells:
+                cells[cell_id] = Maze.Cell(cell_id, dimensions_sizes)
+            return cells[cell_id]
+
+        def calculate_neighbors(cell_id):
+            neighbors = []
+            for dim_index, size in enumerate(dimensions_sizes):
+                offset_divisor = 1
+                for i in range(dim_index):
+                    offset_divisor *= dimensions_sizes[i]
+
+                for offset in [-1, 1]:
+                    neighbor_id = cell_id
+                    delta = offset * offset_divisor
+                    pos_in_dim = (cell_id // offset_divisor) % size + offset
+                    if 0 <= pos_in_dim < size:
+                        neighbor_id += delta
+                        if 0 <= neighbor_id < total_cells:
+                            neighbors.append(neighbor_id)
+            return neighbors
 
         while stack:
             current = stack[-1]
-            current_cell = self.cells[current]
-            unvisited_neighbors = [n for n in current_cell.not_done if n not in visited]
+            if current not in visited:
+                visited.add(current)
+                current_cell = get_cell(current)
+                neighbors = calculate_neighbors(current)
+                unvisited_neighbors = [
+                    n for n in neighbors if n not in visited and start <= n < end
+                ]
 
-            if not unvisited_neighbors:
-                stack.pop()
+                if unvisited_neighbors:
+                    neighbor = random.choice(unvisited_neighbors)
+                    neighbor_cell = get_cell(neighbor)
+                    current_cell.connect(neighbor)
+                    neighbor_cell.connect(current)
+                    stack.append(neighbor)
+                else:
+                    stack.pop()
             else:
-                neighbor = random.choice(unvisited_neighbors)
-                current_cell.connect(neighbor)
-                self.cells[neighbor].connect(current)
-                visited.add(neighbor)
-                stack.append(neighbor)
+                stack.pop()
+
+        return cells, visited
+
+    def generate(self):
+        num_processes = min(mp.cpu_count(), self.total_cells)
+        chunk_size = max(1, self.total_cells // num_processes)
+
+        with mp.Pool(processes=num_processes) as pool:
+            sections = [
+                (i * chunk_size, min((i + 1) * chunk_size, self.total_cells))
+                for i in range(num_processes)
+                if i * chunk_size < self.total_cells
+            ]
+
+            results = pool.starmap(
+                partial(
+                    Maze.generate_section,
+                    total_cells=self.total_cells,
+                    dimensions_sizes=self.dimensions_sizes,
+                ),
+                sections,
+            )
+
+        for cells, _ in results:
+            self.cells.update(cells)
+
+        visited = set()
+        for _, section_visited in results:
+            visited.update(section_visited)
+
+        self.connect_sections(visited)
+
+    def connect_sections(self, visited):
+        for cell_id in visited:
+            cell = self.get_cell(cell_id)
+            neighbors = self.calculate_neighbors(cell_id)
+            for neighbor in neighbors:
+                if neighbor in visited and neighbor not in cell.links:
+                    neighbor_cell = self.get_cell(neighbor)
+                    if random.random() < 0.3:  # 30% chance to connect sections
+                        cell.connect(neighbor)
+                        neighbor_cell.connect(cell_id)
 
     def display_maze_3d(self):
         if len(self.dimensions_sizes) != 3:
@@ -134,7 +171,7 @@ class Maze:
                 bottom = "+"
                 for x in range(x_size):
                     cell_id = x + y * x_size + layer * layer_size
-                    cell = self.cells[cell_id]
+                    cell = self.get_cell(cell_id)
                     right = (
                         "|"
                         if ((cell_id + 1) % x_size) == 0
@@ -144,7 +181,7 @@ class Maze:
                     bottom += (
                         "       +"
                         if (cell_id + x_size) in cell.links
-                        and cell_id + x_size < len(self.cells)
+                        and cell_id + x_size < self.total_cells
                         else "-------+"
                     )
                     vert_marker = " {:<2}".format(cell_id)
@@ -174,12 +211,9 @@ class Maze:
             for y in range(y_size):
                 for x in range(x_size):
                     _id = x + y * x_size + layer * layer_size
-                    cell = self.cells[_id]
+                    cell = self.get_cell(_id)
                     links = [link_id for link_id in cell.links]
-                    walls = [wall_id for wall_id in cell.not_done]
-                    self.out(
-                        f"Cell {cell.spatial(_id)} (ID: {_id}) - Links: {links}, Walls: {walls}"
-                    )
+                    self.out(f"Cell {cell.spatial(_id)} (ID: {_id}) - Links: {links}")
         self.out("\n")
 
 
