@@ -20,6 +20,7 @@ bl_info = {
     "category": "Add Mesh",
 }
 
+
 class MAZE_OT_generator_popup(bpy.types.Operator):
     bl_idname = "mesh.generate_maze_popup"
     bl_label = "Generate Maze"
@@ -28,12 +29,18 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
     x_size: bpy.props.IntProperty(name="X Size", default=18, min=1, max=100)
     y_size: bpy.props.IntProperty(name="Y Size", default=15, min=1, max=100)
     z_size: bpy.props.IntProperty(name="Z Size", default=4, min=1, max=100)
-    thickness: bpy.props.FloatProperty(name="Wall Thickness", default=0.1, min=0.01, max=1.0)
-    spacing: bpy.props.FloatProperty(name="Cell Spacing", default=1.0, min=0.1, max=10.0)
+    thickness: bpy.props.FloatProperty(
+        name="Wall Thickness", default=0.1, min=0.01, max=1.0
+    )
+    spacing: bpy.props.FloatProperty(
+        name="Cell Spacing", default=1.0, min=0.1, max=10.0
+    )
 
     def execute(self, context):
-        self.generate_maze(context, self.x_size, self.y_size, self.z_size, self.thickness, self.spacing)
-        return {'FINISHED'}
+        self.generate_maze(
+            context, self.x_size, self.y_size, self.z_size, self.thickness, self.spacing
+        )
+        return {"FINISHED"}
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
@@ -159,7 +166,9 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
             out(f"Vertices merged (removed): {verts_removed}")
 
         c_l = []
-        maze = Maze([x_size, y_size, z_size], "/home/olivier/projects/blender-maze/out.txt")
+        maze = Maze(
+            [x_size, y_size, z_size], "/home/olivier/projects/blender-maze/out.txt"
+        )
         maze.generate()
         maze.display_maze_3d()
         out = maze.out
@@ -198,14 +207,15 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
                     if not zn:
                         c_l.append([center, "b"])
 
-        create_and_join_prisms(c_l, thickness=thickness, distance=spacing/2)
+        create_and_join_prisms(c_l, thickness=thickness, distance=spacing / 2)
+
 
 class MAZE_PT_generator_panel(bpy.types.Panel):
     bl_label = "Maze Generator"
     bl_idname = "MAZE_PT_generator_panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'Tool'
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Tool"
 
     def draw(self, context):
         layout = self.layout
@@ -218,16 +228,20 @@ class MAZE_PT_generator_panel(bpy.types.Panel):
         layout.prop(props, "spacing")
         layout.operator("mesh.generate_maze")
 
+
 def menu_func(self, context):
     self.layout.operator(MAZE_OT_generator_popup.bl_idname, icon="MESH_CUBE")
+
 
 def register():
     bpy.utils.register_class(MAZE_OT_generator_popup)
     bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
 
+
 def unregister():
     bpy.utils.unregister_class(MAZE_OT_generator_popup)
     bpy.types.VIEW3D_MT_mesh_add.remove(menu_func)
+
 
 if __name__ == "__main__":
     register()

@@ -1,4 +1,6 @@
 import random
+import argparse
+from pathlib import PurePath, Path
 
 
 class Maze:
@@ -49,12 +51,12 @@ class Maze:
 
     def __init__(self, sizes, output_file=None):
         self.dimensions_sizes = sizes
+        self._output_file = output_file
         self.cells = self.generate_cells()
-        self.output_file = output_file
 
     def out(self, content):
-        if self.output_file:
-            with open(self.output_file, "a") as file:
+        if self._output_file:
+            with open(self._output_file, "a") as file:
                 file.write(f"{content}\n")
         else:
             print(content)
@@ -123,8 +125,9 @@ class Maze:
         x_size, y_size, z_size = self.dimensions_sizes
         layer_size = x_size * y_size
 
-        for layer in range(z_size):
-            self.out(f"Layer {layer + 1}:")
+        range_z_size = range(z_size)
+        for layer in range_z_size:
+            self.out(f"Layer {layer + 1}/{len(range_z_size)}")
             self.out("+" + "-------+" * x_size)
             for y in range(y_size):
                 top = "|"
@@ -160,7 +163,7 @@ class Maze:
 
     def dump(self):
         if len(self.dimensions_sizes) != 3:
-            self.out("Cette méthode supporte uniquement des labyrinthes 3D.")
+            self.out("This method only supports 3D mazes.")
             return
 
         x_size, y_size, z_size = self.dimensions_sizes
@@ -175,14 +178,42 @@ class Maze:
                     links = [link_id for link_id in cell.links]
                     walls = [wall_id for wall_id in cell.not_done]
                     self.out(
-                        f"Cell {cell.spatial(_id)} (ID: {_id}) - Liens: {links}, Murs: {walls}"
+                        f"Cell {cell.spatial(_id)} (ID: {_id}) - Links: {links}, Walls: {walls}"
                     )
         self.out("\n")
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Generate a 3D maze")
+    parser.add_argument(
+        "--sizes",
+        nargs=3,
+        type=int,
+        default=[2, 3, 2],
+        help="Dimensions of the maze (x, y, z)",
+    )
+    parser.add_argument("-x", type=int, required=True, help="X dimension of the maze")
+    parser.add_argument("-y", type=int, required=True, help="Y dimension of the maze")
+    parser.add_argument("-z", type=int, required=True, help="Z dimension of the maze")
+    parser.add_argument(
+        "-o", "--output", type=str, default=None, help="Output file path"
+    )
+    parser.add_argument(
+        "--clear", action="store_true", help="Clear the output file before writing"
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    # random.seed(42)
-    maze = Maze([10, 3, 3], "/home/olivier/projects/blender-maze/out.txt")
+    args = parse_arguments()
+
+    output_path = PurePath(args.output) if args.output else None
+
+    if output_path and args.clear:
+        g_output_file = Path(output_path)
+        if g_output_file.exists():
+            g_output_file.unlink()
+
+    maze = Maze([args.x, args.y, args.z], output_path)
     maze.generate()
     maze.display_maze_3d()
-    # maze_3d.dump()
