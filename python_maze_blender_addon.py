@@ -61,15 +61,16 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
             print(msg)
 
         def create_prism(location, direction, thickness, distance):
+            half_thickness = thickness / 2
             vertices = [
-                (-thickness, -distance, -distance),
-                (+thickness, -distance, -distance),
-                (+thickness, +distance, -distance),
-                (-thickness, +distance, -distance),
-                (-thickness, -distance, +distance),
-                (+thickness, -distance, +distance),
-                (+thickness, +distance, +distance),
-                (-thickness, +distance, +distance),
+                (-half_thickness, -distance, -distance),
+                (+half_thickness, -distance, -distance),
+                (+half_thickness, +distance, -distance),
+                (-half_thickness, +distance, -distance),
+                (-half_thickness, -distance, +distance),
+                (+half_thickness, -distance, +distance),
+                (+half_thickness, +distance, +distance),
+                (-half_thickness, +distance, +distance),
             ]
 
             # Faces of the parallelepiped
@@ -106,12 +107,12 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
 
             # Offset to apply after rotation, taking into account the new orientation of the object
             offset_vectors = {
-                "n": (0, distance, 0),
-                "s": (0, -distance, 0),
-                "e": (distance, 0, 0),
-                "w": (-distance, 0, 0),
-                "t": (0, 0, distance),
-                "b": (0, 0, -distance),
+                "n": (0, distance + half_thickness, 0),
+                "s": (0, -distance - half_thickness, 0),
+                "e": (distance + half_thickness, 0, 0),
+                "w": (-distance - half_thickness, 0, 0),
+                "t": (0, 0, distance + half_thickness),
+                "b": (0, 0, -distance - half_thickness),
             }
 
             # Apply the offset based on the direction
@@ -194,27 +195,20 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
                     zp = cell_id + layer_size in cell.links
                     zn = cell_id - layer_size in cell.links
 
-                    d = (
-                        f"{cell_id=} : "
-                        f"N{int(yn)}S{int(yp)}"
-                        f"E{int(xp)}W{int(xn)}"
-                        f"T{int(zp)}B{int(zn)}"
-                        f", {center=}"
-                    )
                     w = []
-                    if not xp:
-                        w.append("e")
-                    if not xn:
-                        w.append("w")
-                    if not yp:
-                        w.append("s")
                     if not yn:
                         w.append("n")
+                    if not xp:
+                        w.append("e")
+                    if not yp:
+                        w.append("s")
+                    if not xn:
+                        w.append("w")
                     if not zp:
                         w.append("t")
                     if not zn:
                         w.append("b")
-                    maze.out("{}({})".format(d, "".join(w)).strip())
+                    maze.out("{} ({})".format(f"{center=}", "".join(w)).strip())
                     if not xp:
                         c_l.append([center, "e"])
                     if not xn:

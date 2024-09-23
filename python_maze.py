@@ -172,11 +172,12 @@ class Maze:
                     if ((cell_id + 1) % x_size) != 0 and (cell_id + 1) in cell.links:
                         right = " "
 
-                    bottom = "-------+"
                     if (cell_id + x_size) in cell.links and (
                         cell_id + x_size < self.total_cells
                     ):
-                        bottom = "       +"
+                        bottom += "       +"
+                    else:
+                        bottom += "-------+"
                     vert_marker = " {:<2}".format(cell_id)
                     vert_marker += "*" if len(cell.links) == 1 else " "
                     vert_marker += "." if (cell_id - layer_size) in cell.links else " "
