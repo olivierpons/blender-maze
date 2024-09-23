@@ -28,14 +28,14 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
     bl_label = "Generate Maze"
     bl_options = {"REGISTER", "UNDO"}
 
-    x_size: bpy.props.IntProperty(name="X Size", default=18, min=1, max=100)
-    y_size: bpy.props.IntProperty(name="Y Size", default=15, min=1, max=100)
-    z_size: bpy.props.IntProperty(name="Z Size", default=4, min=1, max=100)
+    x_size: bpy.props.IntProperty(name="X Size", default=3, min=1, max=100)
+    y_size: bpy.props.IntProperty(name="Y Size", default=3, min=1, max=100)
+    z_size: bpy.props.IntProperty(name="Z Size", default=2, min=1, max=100)
     thickness: bpy.props.FloatProperty(
-        name="Wall Thickness", default=0.1, min=0.01, max=1.0
+        name="Wall Thickness", default=0.01, min=0.01, max=1.0
     )
     spacing: bpy.props.FloatProperty(
-        name="Cell Spacing", default=1.0, min=0.1, max=10.0
+        name="Cell Spacing", default=1.5, min=0.1, max=10.0
     )
 
     def execute(self, context):
