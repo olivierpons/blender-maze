@@ -5,6 +5,9 @@ from typing import Callable, List, Tuple, Optional, Set, Dict
 from collections import deque
 
 
+random.seed(41)
+
+
 class Maze:
     class Cell:
         def __init__(self, cell_id: int, dimensions_sizes: List[int]):

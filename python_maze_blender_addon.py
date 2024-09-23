@@ -29,8 +29,8 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
     bl_label = "Generate Maze"
     bl_options = {"REGISTER", "UNDO"}
 
-    x_size: bpy.props.IntProperty(name="X Size", default=2, min=1, max=100)
-    y_size: bpy.props.IntProperty(name="Y Size", default=2, min=1, max=100)
+    x_size: bpy.props.IntProperty(name="X Size", default=3, min=1, max=100)
+    y_size: bpy.props.IntProperty(name="Y Size", default=3, min=1, max=100)
     z_size: bpy.props.IntProperty(name="Z Size", default=1, min=1, max=100)
     wall_thickness: bpy.props.FloatProperty(
         name="Wall Thickness", default=0.1, min=0.01, max=1.0
@@ -39,7 +39,7 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
         name="Wall Height", default=1.0, min=0.1, max=5.0
     )
     spacing: bpy.props.FloatProperty(
-        name="Cell Spacing", default=1.5, min=0.1, max=10.0
+        name="Cell Spacing", default=1.0, min=0.1, max=10.0
     )
     octagon_radius: bpy.props.FloatProperty(
         name="Octagon Radius", default=0.1, min=0.01, max=1.0
@@ -83,165 +83,82 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
         layout.prop(self, "spacing")
         layout.prop(self, "octagon_radius")
 
-    @staticmethod
-    def create_octagon(location, radius, height):
-        vertices = []
-        faces = []
-
-        for i in range(8):
-            angle = i * (2 * math.pi / 8) + (math.pi / 8)  # Rotate by 22.5 degrees
-            _x = location[0] + radius * math.cos(angle)
-            _y = location[1] + radius * math.sin(angle)
-            _z = location[2]
-            vertices.append((_x, _y, _z))
-            vertices.append((_x, _y, _z + height))
-
-        for i in range(8):
-            faces.append([2 * i, (2 * i + 2) % 16, (2 * i + 3) % 16, 2 * i + 1])
-        faces.append(list(range(0, 16, 2)))
-        faces.append(list(range(1, 16, 2))[::-1])
-
-        return vertices, faces
-
-    def create_wall(self, oct1_offset, oct2_offset, side, is_bottom=False):
-        if not is_bottom:
-            idx1 = side * 2 + 2
-            idx2 = (side * 2 + 4) % 16
-            result_faces = [
-                [
-                    oct1_offset + idx1,
-                    oct1_offset + idx1 + 1,
-                    oct2_offset + idx2 + 1,
-                    oct2_offset + idx2,
-                ],  # Front face
-                [
-                    oct1_offset + idx2,
-                    oct1_offset + idx2 + 1,
-                    oct2_offset + (idx2 + 2) % 16 + 1,
-                    oct2_offset + (idx2 + 2) % 16,
-                ],  # Back face
-                [
-                    oct1_offset + idx1,
-                    oct2_offset + idx2,
-                    oct2_offset + (idx2 + 2) % 16,
-                    oct1_offset + idx2,
-                ],  # Top face
-                [
-                    oct1_offset + idx1 + 1,
-                    oct1_offset + idx2 + 1,
-                    oct2_offset + (idx2 + 2) % 16 + 1,
-                    oct2_offset + idx2 + 1,
-                ],  # Bottom face
-            ]
-            self.out(result_faces)
-        else:
-            # For vertical walls, connect all sides
-            result_faces = []
-            # for i in range(8):
-            #     idx1 = i * 2
-            #     idx2 = (i * 2 + 2) % 16
-            #     result_faces.append(
-            #         [
-            #             oct1_offset + idx1,
-            #             oct1_offset + idx2,
-            #             oct2_offset + idx2,
-            #             oct2_offset + idx1,
-            #         ]
-            #     )
-
-        return result_faces
-
-    def generate_maze(
-        self,
-        context,
-        x_size,
-        y_size,
-        z_size,
-        wall_thickness,
-        wall_height,
-        spacing,
-        octagon_radius,
-    ):
+    def generate_maze(self, context, x_size, y_size, z_size, wall_thickness, wall_height, spacing, octagon_radius):
         maze = Maze(sizes=[x_size, y_size, z_size])
         maze.generate()
 
-        all_vertices = []
-        all_faces = []
-        vertex_offset = 0
+        vertices = []
+        faces = []
 
-        # Calculate the offset for proper alignment
-        x_offset = spacing * (math.sqrt(2) - 1) / 2
-        y_offset = spacing * (math.sqrt(2) - 1) / 2
+        def add_octo(idx_x, idx_y, vz):
+            base_x = idx_x * spacing
+            base_y = idx_y * spacing
+            vertices.append((base_x, base_y, vz))
+            for i in range(8):
+                angle = i * (2 * math.pi / 8) + (math.pi / 8)
+                vx = base_x + octagon_radius * math.cos(angle)
+                vy = base_y + octagon_radius * math.sin(angle)
+                vertices.append((vx, vy, vz))
 
-        # Create all octagons (floors and walls)
-        octagon_positions = {}
-        for z in range(z_size + 1):
+        # Generate all vertices
+        for z in range(z_size + 2):
             for y in range(y_size + 1):
                 for x in range(x_size + 1):
-                    # Floor octagon
-                    floor_location = (
-                        x * spacing + x_offset,
-                        -(y * spacing + y_offset),
-                        z * (wall_height + wall_thickness),
-                    )
-                    floor_verts, floor_faces = self.create_octagon(
-                        floor_location, octagon_radius, wall_thickness
-                    )
-                    octagon_positions[(x, y, z, "floor")] = vertex_offset
-                    all_vertices.extend(floor_verts)
-                    all_faces.extend(
-                        [[f + vertex_offset for f in face] for face in floor_faces]
-                    )
-                    vertex_offset += len(floor_verts)
+                    add_octo(x, y, z * wall_height)
+                    add_octo(x, y, z * wall_height + wall_thickness)
 
-                    # Wall octagon
-                    if z < z_size:
-                        wall_location = (
-                            x * spacing + x_offset,
-                            -(y * spacing + y_offset),
-                            z * (wall_height + wall_thickness) + wall_thickness,
-                        )
-                        wall_verts, wall_faces = self.create_octagon(
-                            wall_location, octagon_radius, wall_height
-                        )
-                        octagon_positions[(x, y, z, "wall")] = vertex_offset
-                        all_vertices.extend(wall_verts)
-                        all_faces.extend(
-                            [[f + vertex_offset for f in face] for face in wall_faces]
-                        )
-                        vertex_offset += len(wall_verts)
+        bottom = []
+        for y in range(y_size):
+            for x in range(x_size):
+                base = (y * x_size + x) * 18
+                bottom.append(base)
+        self.out(f"{bottom=}")
+        faces.append(bottom)
 
-        # Create walls between octagons
+        # # Create faces for walls
         for z in range(z_size):
             for y in range(y_size):
                 for x in range(x_size):
                     cell_id = x + y * x_size + z * (x_size * y_size)
                     cell = maze.get_cell(cell_id)
+        #
+        #             base_index = (x + y * (x_size + 1) + z * (x_size + 1) * (y_size + 1)) * 16
+        #
+        #             # East wall
+        #             if not cell.has_link_in_direction("e") and x < x_size - 1:
+        #                 for i in range(8):
+        #                     faces.append([
+        #                         base_index + i * 2,
+        #                         base_index + ((i + 1) % 8) * 2,
+        #                         base_index + ((i + 1) % 8) * 2 + 1,
+        #                         base_index + i * 2 + 1
+        #                     ])
+        #
+        #             # South wall
+        #             if not cell.has_link_in_direction("s") and y < y_size - 1:
+        #                 south_base = base_index + (x_size + 1) * 16
+        #                 for i in range(8):
+        #                     faces.append([
+        #                         base_index + ((i + 6) % 8) * 2,
+        #                         south_base + ((i + 6) % 8) * 2,
+        #                         south_base + ((i + 7) % 8) * 2,
+        #                         base_index + ((i + 7) % 8) * 2
+        #                     ])
+        #
+        #             # Up wall
+        #             if not cell.has_link_in_direction("u") and z < z_size - 1:
+        #                 up_base = base_index + (x_size + 1) * (y_size + 1) * 16
+        #                 for i in range(8):
+        #                     faces.append([
+        #                         base_index + i * 2 + 1,
+        #                         base_index + ((i + 1) % 8) * 2 + 1,
+        #                         up_base + ((i + 1) % 8) * 2,
+        #                         up_base + i * 2
+        #                     ])
 
-                    # Check walls in each direction
-                    if not cell.has_link_in_direction("e") and x < x_size - 1:
-                        oct1_offset = octagon_positions[(x, y, z, "wall")]
-                        oct2_offset = octagon_positions[(x + 1, y, z, "wall")]
-                        wall_faces = self.create_wall(oct1_offset, oct2_offset, 2)
-                        all_faces.extend(wall_faces)
-
-                    if not cell.has_link_in_direction("s") and y < y_size - 1:
-                        oct1_offset = octagon_positions[(x, y, z, "wall")]
-                        oct2_offset = octagon_positions[(x, y + 1, z, "wall")]
-                        wall_faces = self.create_wall(oct1_offset, oct2_offset, 4)
-                        all_faces.extend(wall_faces)
-
-                    if not cell.has_link_in_direction("u") and z < z_size - 1:
-                        oct1_offset = octagon_positions[(x, y, z, "wall")]
-                        oct2_offset = octagon_positions[(x, y, z + 1, "floor")]
-                        wall_faces = self.create_wall(
-                            oct1_offset, oct2_offset, 0, is_bottom=True
-                        )
-                        all_faces.extend(wall_faces)
-
-        # Create the final mesh
+        # Create the mesh
         mesh = bpy.data.meshes.new("Maze")
-        mesh.from_pydata(all_vertices, [], all_faces)
+        mesh.from_pydata(vertices, [], faces)
         mesh.update()
 
         obj = bpy.data.objects.new("Maze", mesh)
