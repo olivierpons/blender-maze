@@ -170,8 +170,9 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
 
         c_l = []
         maze = Maze(
-            [x_size, y_size, z_size],
-            Path("/home/olivier/projects/blender-maze/out.txt"),
+            sizes=[x_size, y_size, z_size],
+            output_file=Path("/home/olivier/projects/blender-maze/out.txt"),
+            silent=False,
         )
         maze.generate()
         maze.display_maze_3d()
