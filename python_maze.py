@@ -23,20 +23,29 @@ class Maze:
                 divisor *= size
             return tuple(coordinates)
 
-    def __init__(self, sizes, output_file=None):
+    def __init__(self, *, sizes, output_file=None, silent=False):
         self.dimensions_sizes = sizes
         self._output_file = output_file
         self.total_cells = 1
         for size in self.dimensions_sizes:
             self.total_cells *= size
         self.cells = {}
+        if silent:
+            self.out = self._out_silent
+            self.display_maze_3d = self._display_maze_3d_silent
+        else:
+            self.out = self._out_verbose
+            self.display_maze_3d = self._display_maze_3d_verbose
 
-    def out(self, content):
+    def _out_verbose(self, content):
         if self._output_file:
             with open(self._output_file, "a") as file:
                 file.write(f"{content}\n")
         else:
             print(content)
+
+    def _out_silent(self, content):
+        pass
 
     def get_cell(self, cell_id):
         if cell_id not in self.cells:
@@ -62,17 +71,12 @@ class Maze:
 
     @staticmethod
     def generate_section(start, end, total_cells, dimensions_sizes):
-        if start >= end or start >= total_cells:
-            return {}, set()
-
-        cells = {}
+        cells = {
+            i: Maze.Cell(i, dimensions_sizes)
+            for i in range(start, min(end, total_cells))
+        }
         visited = set()
         stack = [random.randint(start, min(end - 1, total_cells - 1))]
-
-        def get_cell(cell_id):
-            if cell_id not in cells:
-                cells[cell_id] = Maze.Cell(cell_id, dimensions_sizes)
-            return cells[cell_id]
 
         def calculate_neighbors(cell_id):
             neighbors = []
@@ -87,7 +91,7 @@ class Maze:
                     pos_in_dim = (cell_id // offset_divisor) % size + offset
                     if 0 <= pos_in_dim < size:
                         neighbor_id += delta
-                        if 0 <= neighbor_id < total_cells:
+                        if start <= neighbor_id < end:
                             neighbors.append(neighbor_id)
             return neighbors
 
@@ -95,15 +99,13 @@ class Maze:
             current = stack[-1]
             if current not in visited:
                 visited.add(current)
-                current_cell = get_cell(current)
+                current_cell = cells[current]
                 neighbors = calculate_neighbors(current)
-                unvisited_neighbors = [
-                    n for n in neighbors if n not in visited and start <= n < end
-                ]
+                unvisited_neighbors = [n for n in neighbors if n not in visited]
 
                 if unvisited_neighbors:
                     neighbor = random.choice(unvisited_neighbors)
-                    neighbor_cell = get_cell(neighbor)
+                    neighbor_cell = cells[neighbor]
                     current_cell.connect(neighbor)
                     neighbor_cell.connect(current)
                     stack.append(neighbor)
@@ -111,6 +113,15 @@ class Maze:
                     stack.pop()
             else:
                 stack.pop()
+
+        # Connect any remaining unvisited cells
+        unvisited = set(cells.keys()) - visited
+        for cell_id in unvisited:
+            neighbors = calculate_neighbors(cell_id)
+            if neighbors:
+                neighbor = random.choice(neighbors)
+                cells[cell_id].connect(neighbor)
+                cells[neighbor].connect(cell_id)
 
         return cells, visited
 
@@ -137,24 +148,30 @@ class Maze:
         for cells, _ in results:
             self.cells.update(cells)
 
-        visited = set()
-        for _, section_visited in results:
-            visited.update(section_visited)
+        self.connect_sections()
+        self.check_isolated_cells()
 
-        self.connect_sections(visited)
-
-    def connect_sections(self, visited):
-        for cell_id in visited:
+    def connect_sections(self):
+        for cell_id in range(self.total_cells):
             cell = self.get_cell(cell_id)
-            neighbors = self.calculate_neighbors(cell_id)
-            for neighbor in neighbors:
-                if neighbor in visited and neighbor not in cell.links:
-                    neighbor_cell = self.get_cell(neighbor)
-                    if random.random() < 0.3:  # 30% chance to connect sections
-                        cell.connect(neighbor)
-                        neighbor_cell.connect(cell_id)
+            if not cell.links:
+                neighbors = self.calculate_neighbors(cell_id)
+                if neighbors:
+                    neighbor = random.choice(neighbors)
+                    cell.connect(neighbor)
+                    self.get_cell(neighbor).connect(cell_id)
 
-    def display_maze_3d(self):
+    def check_isolated_cells(self):
+        isolated_cells = [
+            cell_id for cell_id, cell in self.cells.items() if not cell.links
+        ]
+        if isolated_cells:
+            raise Exception(f"Isolated cells detected: {isolated_cells}")
+
+    def _display_maze_3d_silent(self):
+        pass
+
+    def _display_maze_3d_verbose(self):
         if len(self.dimensions_sizes) != 3:
             self.out("This method only supports 3D mazes.")
             return
@@ -232,6 +249,7 @@ def parse_arguments():
     parser.add_argument(
         "-o", "--output", type=str, default=None, help="Output file path"
     )
+    parser.add_argument("-s", "--silent", type=int, default=0, help="Silent mode")
     parser.add_argument(
         "--clear", action="store_true", help="Clear the output file before writing"
     )
@@ -248,6 +266,10 @@ if __name__ == "__main__":
         if g_output_file.exists():
             g_output_file.unlink()
 
-    maze = Maze([args.x, args.y, args.z], output_path)
+    maze = Maze(
+        sizes=[args.x, args.y, args.z],
+        output_file=output_path,
+        silent=bool(args.silent),
+    )
     maze.generate()
     maze.display_maze_3d()

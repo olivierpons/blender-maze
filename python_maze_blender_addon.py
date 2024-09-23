@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import bpy
 import bmesh
 import sys
@@ -168,7 +170,8 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
 
         c_l = []
         maze = Maze(
-            [x_size, y_size, z_size], "/home/olivier/projects/blender-maze/out.txt"
+            [x_size, y_size, z_size],
+            Path("/home/olivier/projects/blender-maze/out.txt"),
         )
         maze.generate()
         maze.display_maze_3d()
@@ -179,10 +182,24 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
             for y in range(y_size):
                 for x in range(x_size):
                     cell_id = x + y * x_size + z * layer_size
-                    cell = maze.cells[cell_id]
-                    xp, xn, yp, yn, zp, zn = cell.xp_xn_yp_yn_zp_zn()
+                    cell = maze.get_cell(cell_id)
                     center = [x * spacing, -y * spacing, z * spacing]
-                    d = f"{cell_id=} : T{int(zp)}B{int(zn)} E{int(xp)}W{int(xn)} S{int(yp)}N{int(yn)}, {center=}"
+
+                    neighbors = maze.calculate_neighbors(cell_id)
+                    xp = cell_id + 1 in cell.links
+                    xn = cell_id - 1 in cell.links
+                    yp = cell_id + x_size in cell.links
+                    yn = cell_id - x_size in cell.links
+                    zp = cell_id + layer_size in cell.links
+                    zn = cell_id - layer_size in cell.links
+
+                    d = (
+                        f"{cell_id=} : "
+                        f"N{int(yn)}S{int(yp)}"
+                        f"E{int(xp)}W{int(xn)}"
+                        f"T{int(zp)}B{int(zn)}"
+                        f", {center=}"
+                    )
                     w = []
                     if not xp:
                         w.append("e")
