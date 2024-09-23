@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import bpy
@@ -37,10 +38,14 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
     spacing: bpy.props.FloatProperty(
         name="Cell Spacing", default=1.5, min=0.1, max=10.0
     )
+    octagon_radius: bpy.props.FloatProperty(
+        name="Octagon Radius", default=0.1, min=0.01, max=1.0
+    )
 
     def execute(self, context):
         self.generate_maze(
-            context, self.x_size, self.y_size, self.z_size, self.thickness, self.spacing
+            context, self.x_size, self.y_size, self.z_size,
+            self.thickness, self.spacing, self.thickness
         )
         return {"FINISHED"}
 
@@ -54,9 +59,10 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
         layout.prop(self, "z_size")
         layout.prop(self, "thickness")
         layout.prop(self, "spacing")
+        layout.prop(self, "octagon_radius")
 
     @staticmethod
-    def generate_maze(context, x_size, y_size, z_size, thickness, spacing):
+    def generate_maze(context, x_size, y_size, z_size, thickness, spacing, octagon_radius):
         def out(msg):
             print(msg)
 
@@ -128,6 +134,36 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
             out(f"{direction=} => {rotation_angles[direction]=}")
             return obj
 
+        def create_octagon(location, radius, height):
+            vertices = []
+            faces = []
+
+            side_length = thickness
+            radius = side_length / (2 * math.sin(math.pi / 8))
+
+            for i in range(8):
+                angle = i * (2 * math.pi / 8) + (math.pi / 8)  # Rotation de 22.5 degrés
+                x = location[0] + radius * math.cos(angle)
+                y = location[1] + radius * math.sin(angle)
+                z = location[2]
+                vertices.append((x, y, z))
+                vertices.append((x, y, z + height))
+
+            # Side faces:
+            for i in range(8):
+                faces.append([2 * i, (2 * i + 2) % 16, (2 * i + 3) % 16, 2 * i + 1])
+
+            # Faces up and down:
+            faces.append(list(range(0, 16, 2)))
+            faces.append(list(range(1, 16, 2))[::-1])
+
+            mesh = bpy.data.meshes.new("Octagon")
+            mesh.from_pydata(vertices, [], faces)
+            mesh.update()
+            obj = bpy.data.objects.new("Octagon", mesh)
+            bpy.context.collection.objects.link(obj)
+            return obj
+
         def create_and_join_prisms(prisms, thickness, distance):
             created_objects = []
             for location, direction in prisms:
@@ -170,6 +206,7 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
             out(f"Vertices merged (removed): {verts_removed}")
 
         c_l = []
+        octagon_objects = []
         maze = Maze(
             sizes=[x_size, y_size, z_size],
             output_file=Path("/home/olivier/projects/blender-maze/out.txt"),
@@ -187,7 +224,6 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
                     cell = maze.get_cell(cell_id)
                     center = [x * spacing, -y * spacing, z * spacing]
 
-                    neighbors = maze.calculate_neighbors(cell_id)
                     xp = cell_id + 1 in cell.links
                     xn = cell_id - 1 in cell.links
                     yp = cell_id + x_size in cell.links
@@ -220,7 +256,29 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
                     if not zn:
                         c_l.append([center, "b"])
 
+                    # Add octagonal pillars at the corners of each cell
+                    corner_offsets = [
+                        (-spacing / 2 + thickness / 2, spacing / 2 - thickness / 2, -spacing / 2),
+                        (spacing / 2 - thickness / 2, spacing / 2 - thickness / 2, -spacing / 2),
+                        (-spacing / 2 + thickness / 2, -spacing / 2 + thickness / 2, -spacing / 2),
+                        (spacing / 2 - thickness / 2, -spacing / 2 + thickness / 2, -spacing / 2)
+                    ]
+                    for offset in corner_offsets:
+                        octagon_location = (
+                            center[0] + offset[0],
+                            center[1] + offset[1],
+                            center[2] + offset[2]
+                        )
+                        octagon_objects.append(create_octagon(octagon_location, thickness / 2, spacing))
+
         create_and_join_prisms(c_l, thickness=thickness, distance=spacing / 2)
+
+        # Join all octagon objects
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in octagon_objects:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = octagon_objects[0]
+        bpy.ops.object.join()
 
 
 class MAZE_PT_generator_panel(bpy.types.Panel):
@@ -239,7 +297,8 @@ class MAZE_PT_generator_panel(bpy.types.Panel):
         layout.prop(props, "z_size")
         layout.prop(props, "thickness")
         layout.prop(props, "spacing")
-        layout.operator("mesh.generate_maze")
+        layout.prop(props, "octagon_radius")
+        layout.operator("mesh.generate_maze_popup")
 
 
 def menu_func(self, context):
