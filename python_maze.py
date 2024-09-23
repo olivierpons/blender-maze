@@ -27,7 +27,7 @@ class Maze:
         self,
         *,
         sizes: List[int],
-        output_file: Optional[str] = None,
+        output_file: Path | str | None = None,
         silent: bool = False,
     ):
         self.dimensions_sizes = sizes

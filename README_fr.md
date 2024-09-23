@@ -4,6 +4,8 @@ Un plugin Blender pour générer des labyrinthes 3D complexes et personnalisable
 
 [English version](README_en.md)
 
+![Exemple de Générateur de Labyrinthe Blender](img/2024-09-23%2010-23-18%20blender.4.2.png)
+
 ## Fonctionnalités
 
 - Génère des labyrinthes 3D avec des dimensions personnalisables

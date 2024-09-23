@@ -4,6 +4,8 @@ A Blender plugin for generating complex and customizable 3D mazes.
 
 [Version française](README_fr.md)
 
+![Blender Maze Generator Example](img/2024-09-23%2010-23-18%20blender.4.2.png)
+
 ## Features
 
 - Generates 3D mazes with customizable dimensions
