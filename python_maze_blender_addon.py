@@ -1,5 +1,6 @@
 import math
 from pathlib import Path
+from typing import Callable
 
 import bpy
 import bmesh
@@ -14,10 +15,10 @@ from python_maze import Maze
 bl_info = {
     "name": "Maze Generator",
     "author": "Olivier Pons",
-    "version": (1, 2),
+    "version": (2, 1),
     "blender": (4, 0, 1),
     "location": "View3D > Add > Mesh",
-    "description": "Generates a 3D maze",
+    "description": "Generates a 3D maze with octogons for floors and walls, with proper vertical connections",
     "warning": "",
     "doc_url": "",
     "category": "Add Mesh",
@@ -32,22 +33,43 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
     x_size: bpy.props.IntProperty(name="X Size", default=3, min=1, max=100)
     y_size: bpy.props.IntProperty(name="Y Size", default=3, min=1, max=100)
     z_size: bpy.props.IntProperty(name="Z Size", default=2, min=1, max=100)
-    thickness: bpy.props.FloatProperty(
-        name="Wall Thickness", default=0.01, min=0.01, max=1.0
+    wall_thickness: bpy.props.FloatProperty(
+        name="Wall Thickness", default=0.1, min=0.01, max=1.0
+    )
+    wall_height: bpy.props.FloatProperty(
+        name="Wall Height", default=1.0, min=0.1, max=5.0
     )
     spacing: bpy.props.FloatProperty(
         name="Cell Spacing", default=1.5, min=0.1, max=10.0
     )
     octagon_radius: bpy.props.FloatProperty(
-        name="Octagon Radius", default=0.1, min=0.01, max=1.0
+        name="Octagon Radius", default=0.5, min=0.01, max=1.0
     )
+
+    def _out_verbose(self, content):
+        if self._output_file:
+            with open(self._output_file, "a") as file:
+                file.write(f"{content}\n")
+        else:
+            print(content)
 
     def execute(self, context):
         self.generate_maze(
-            context, self.x_size, self.y_size, self.z_size,
-            self.thickness, self.spacing, self.thickness
+            context,
+            self.x_size,
+            self.y_size,
+            self.z_size,
+            self.wall_thickness,
+            self.wall_height,
+            self.spacing,
+            self.octagon_radius,
         )
         return {"FINISHED"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._output_file = Path("/home/olivier/projects/blender-maze/out.txt")
+        self.out: Callable[[str], None] = self._out_verbose
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
@@ -57,228 +79,179 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
         layout.prop(self, "x_size")
         layout.prop(self, "y_size")
         layout.prop(self, "z_size")
-        layout.prop(self, "thickness")
+        layout.prop(self, "wall_thickness")
+        layout.prop(self, "wall_height")
         layout.prop(self, "spacing")
         layout.prop(self, "octagon_radius")
 
-    @staticmethod
-    def generate_maze(context, x_size, y_size, z_size, thickness, spacing, octagon_radius):
-        def out(msg):
-            print(msg)
-
-        def create_prism(location, direction, thickness, distance):
-            half_thickness = thickness / 2
-            vertices = [
-                (-half_thickness, -distance, -distance),
-                (+half_thickness, -distance, -distance),
-                (+half_thickness, +distance, -distance),
-                (-half_thickness, +distance, -distance),
-                (-half_thickness, -distance, +distance),
-                (+half_thickness, -distance, +distance),
-                (+half_thickness, +distance, +distance),
-                (-half_thickness, +distance, +distance),
-            ]
-
-            # Faces of the parallelepiped
-            faces = [
-                (0, 1, 2, 3),
-                (4, 5, 6, 7),
-                (0, 3, 7, 4),
-                (1, 2, 6, 5),
-                (0, 1, 5, 4),
-                (3, 2, 6, 7),
-            ]
-
-            # Creating the mesh
-            mesh_data = bpy.data.meshes.new("prism_mesh_data")
-            mesh_data.from_pydata(vertices, [], faces)
-            mesh_data.update()
-
-            obj = bpy.data.objects.new("Prism", mesh_data)
-            bpy.context.collection.objects.link(obj)
-
-            # Definition of rotation angles for each direction
-            rotation_angles = {
-                "n": (0, 0, 1.5708),
-                "s": (0, 0, -1.5708),
-                "e": (0, 0, 0),
-                "w": (0, 0, 3.14159),
-                "t": (0, 1.5708, 0),
-                "b": (0, -1.5708, 0),
-            }
-
-            # Apply the rotation
-            if direction in rotation_angles:
-                obj.rotation_euler = rotation_angles[direction]
-
-            # Offset to apply after rotation, taking into account the new orientation of the object
-            offset_vectors = {
-                "n": (0, distance + half_thickness, 0),
-                "s": (0, -distance - half_thickness, 0),
-                "e": (distance + half_thickness, 0, 0),
-                "w": (-distance - half_thickness, 0, 0),
-                "t": (0, 0, distance + half_thickness),
-                "b": (0, 0, -distance - half_thickness),
-            }
-
-            # Apply the offset based on the direction
-            if direction in offset_vectors:
-                offset = offset_vectors[direction]
-                # Using the object's offset method to apply the offset after the rotation
-                obj.location = (
-                    location[0] + offset[0],
-                    location[1] + offset[1],
-                    location[2] + offset[2],
-                )
-
-            out(f"{direction=} => {rotation_angles[direction]=}")
-            return obj
-
+    def generate_maze(
+        self,
+        context,
+        x_size,
+        y_size,
+        z_size,
+        wall_thickness,
+        wall_height,
+        spacing,
+        octagon_radius,
+    ):
         def create_octagon(location, radius, height):
             vertices = []
             faces = []
 
-            side_length = thickness
-            radius = side_length / (2 * math.sin(math.pi / 8))
-
             for i in range(8):
-                angle = i * (2 * math.pi / 8) + (math.pi / 8)  # Rotation de 22.5 degrés
+                angle = i * (2 * math.pi / 8) + (math.pi / 8)  # Rotate by 22.5 degrees
                 x = location[0] + radius * math.cos(angle)
                 y = location[1] + radius * math.sin(angle)
                 z = location[2]
                 vertices.append((x, y, z))
                 vertices.append((x, y, z + height))
 
-            # Side faces:
             for i in range(8):
                 faces.append([2 * i, (2 * i + 2) % 16, (2 * i + 3) % 16, 2 * i + 1])
-
-            # Faces up and down:
             faces.append(list(range(0, 16, 2)))
             faces.append(list(range(1, 16, 2))[::-1])
 
-            mesh = bpy.data.meshes.new("Octagon")
-            mesh.from_pydata(vertices, [], faces)
-            mesh.update()
-            obj = bpy.data.objects.new("Octagon", mesh)
-            bpy.context.collection.objects.link(obj)
-            return obj
+            return vertices, faces
 
-        def create_and_join_prisms(prisms, thickness, distance):
-            created_objects = []
-            for location, direction in prisms:
-                obj = create_prism(location, direction, thickness, distance)
-                created_objects.append(obj)
+        def create_thick_wall(oct1_offset, oct2_offset, side, is_vertical=False):
+            if not is_vertical:
+                idx1 = side * 2
+                idx2 = (side * 2 + 2) % 16
+                result_faces = [
+                    [
+                        oct1_offset + idx1,
+                        oct1_offset + idx1 + 1,
+                        oct2_offset + idx2 + 1,
+                        oct2_offset + idx2,
+                    ],  # Front face
+                    [
+                        oct1_offset + idx2,
+                        oct1_offset + idx2 + 1,
+                        oct2_offset + (idx2 + 2) % 16 + 1,
+                        oct2_offset + (idx2 + 2) % 16,
+                    ],  # Back face
+                    [
+                        oct1_offset + idx1,
+                        oct2_offset + idx2,
+                        oct2_offset + (idx2 + 2) % 16,
+                        oct1_offset + idx2,
+                    ],  # Top face
+                    [
+                        oct1_offset + idx1 + 1,
+                        oct1_offset + idx2 + 1,
+                        oct2_offset + (idx2 + 2) % 16 + 1,
+                        oct2_offset + idx2 + 1,
+                    ],  # Bottom face
+                ]
+                self.out(result_faces)
+            else:
+                # For vertical walls, connect all sides
+                result_faces = []
+                for i in range(8):
+                    idx1 = i * 2
+                    idx2 = (i * 2 + 2) % 16
+                    result_faces.append(
+                        [
+                            oct1_offset + idx1,
+                            oct1_offset + idx2,
+                            oct2_offset + idx2,
+                            oct2_offset + idx1,
+                        ]
+                    )
 
-            bpy.ops.object.select_all(action="DESELECT")
-            for obj in created_objects:
-                obj.select_set(True)
-            bpy.context.view_layer.objects.active = created_objects[0]
-            bpy.ops.object.join()
+            return result_faces
 
-            # Switch to edit mode:
-            bpy.ops.object.mode_set(mode="EDIT")
-
-            # Prepare to use bmesh and merge by distance:
-            bm = bmesh.from_edit_mesh(bpy.context.active_object.data)
-
-            # Count vertices before merging:
-            verts_before = len(bm.verts)
-
-            # Merge vertices by distance:
-            bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)
-
-            # Count vertices after merging:
-            verts_after = len(bm.verts)
-
-            # Calculate the number of vertices removed:
-            verts_removed = verts_before - verts_after
-
-            # Update the mesh to reflect changes:
-            bmesh.update_edit_mesh(bpy.context.active_object.data)
-
-            # Switch back to object mode:
-            bpy.ops.object.mode_set(mode="OBJECT")
-
-            # Refresh the view:
-            bpy.ops.wm.redraw_timer(type="DRAW_WIN_SWAP", iterations=1)
-
-            out(f"Vertices merged (removed): {verts_removed}")
-
-        c_l = []
-        octagon_objects = []
-        maze = Maze(
-            sizes=[x_size, y_size, z_size],
-            output_file=Path("/home/olivier/projects/blender-maze/out.txt"),
-            silent=False,
-        )
+        maze = Maze(sizes=[x_size, y_size, z_size])
         maze.generate()
-        maze.display_maze_3d()
-        out = maze.out
-        layer_size = x_size * y_size
 
+        all_vertices = []
+        all_faces = []
+        vertex_offset = 0
+
+        # Calculate the offset for proper alignment
+        x_offset = spacing * (math.sqrt(2) - 1) / 2
+        y_offset = spacing * (math.sqrt(2) - 1) / 2
+
+        # Create all octagons (floors and walls)
+        octagon_positions = {}
+        for z in range(z_size + 1):
+            for y in range(y_size + 1):
+                for x in range(x_size + 1):
+                    # Floor octagon
+                    floor_location = (
+                        x * spacing + x_offset,
+                        -(y * spacing + y_offset),
+                        z * (wall_height + wall_thickness),
+                    )
+                    floor_verts, floor_faces = create_octagon(
+                        floor_location, octagon_radius, wall_thickness
+                    )
+                    octagon_positions[(x, y, z, "floor")] = vertex_offset
+                    all_vertices.extend(floor_verts)
+                    all_faces.extend(
+                        [[f + vertex_offset for f in face] for face in floor_faces]
+                    )
+                    vertex_offset += len(floor_verts)
+
+                    # Wall octagon
+                    if z < z_size:
+                        wall_location = (
+                            x * spacing + x_offset,
+                            -(y * spacing + y_offset),
+                            z * (wall_height + wall_thickness) + wall_thickness,
+                        )
+                        wall_verts, wall_faces = create_octagon(
+                            wall_location, octagon_radius, wall_height
+                        )
+                        octagon_positions[(x, y, z, "wall")] = vertex_offset
+                        all_vertices.extend(wall_verts)
+                        all_faces.extend(
+                            [[f + vertex_offset for f in face] for face in wall_faces]
+                        )
+                        vertex_offset += len(wall_verts)
+
+        # Create walls between octagons
         for z in range(z_size):
             for y in range(y_size):
                 for x in range(x_size):
-                    cell_id = x + y * x_size + z * layer_size
+                    cell_id = x + y * x_size + z * (x_size * y_size)
                     cell = maze.get_cell(cell_id)
-                    center = [x * spacing, -y * spacing, z * spacing]
 
-                    xp = cell_id + 1 in cell.links
-                    xn = cell_id - 1 in cell.links
-                    yp = cell_id + x_size in cell.links
-                    yn = cell_id - x_size in cell.links
-                    zp = cell_id + layer_size in cell.links
-                    zn = cell_id - layer_size in cell.links
+                    # Check walls in each direction
+                    if not cell.has_link_in_direction("e") and x < x_size - 1:
+                        oct1_offset = octagon_positions[(x, y, z, "wall")]
+                        oct2_offset = octagon_positions[(x + 1, y, z, "wall")]
+                        wall_faces = create_thick_wall(oct1_offset, oct2_offset, 2)
+                        all_faces.extend(wall_faces)
 
-                    w = []
-                    if not yn:
-                        w.append("n")
-                    if not xp:
-                        w.append("e")
-                    if not yp:
-                        w.append("s")
-                    if not xn:
-                        w.append("w")
-                    if not zp:
-                        w.append("t")
-                    if not zn:
-                        w.append("b")
-                    maze.out("{} ({})".format(f"{center=}", "".join(w)).strip())
-                    if not xp:
-                        c_l.append([center, "e"])
-                    if not xn:
-                        c_l.append([center, "w"])
-                    if not yp:
-                        c_l.append([center, "s"])
-                    if not yn:
-                        c_l.append([center, "n"])
-                    if not zn:
-                        c_l.append([center, "b"])
+                    if not cell.has_link_in_direction("s") and y < y_size - 1:
+                        oct1_offset = octagon_positions[(x, y, z, "wall")]
+                        oct2_offset = octagon_positions[(x, y + 1, z, "wall")]
+                        wall_faces = create_thick_wall(oct1_offset, oct2_offset, 4)
+                        all_faces.extend(wall_faces)
 
-                    # Add octagonal pillars at the corners of each cell
-                    corner_offsets = [
-                        (-spacing / 2 + thickness / 2, spacing / 2 - thickness / 2, -spacing / 2),
-                        (spacing / 2 - thickness / 2, spacing / 2 - thickness / 2, -spacing / 2),
-                        (-spacing / 2 + thickness / 2, -spacing / 2 + thickness / 2, -spacing / 2),
-                        (spacing / 2 - thickness / 2, -spacing / 2 + thickness / 2, -spacing / 2)
-                    ]
-                    for offset in corner_offsets:
-                        octagon_location = (
-                            center[0] + offset[0],
-                            center[1] + offset[1],
-                            center[2] + offset[2]
+                    if not cell.has_link_in_direction("u") and z < z_size - 1:
+                        oct1_offset = octagon_positions[(x, y, z, "wall")]
+                        oct2_offset = octagon_positions[(x, y, z + 1, "floor")]
+                        wall_faces = create_thick_wall(
+                            oct1_offset, oct2_offset, 0, is_vertical=True
                         )
-                        octagon_objects.append(create_octagon(octagon_location, thickness / 2, spacing))
+                        all_faces.extend(wall_faces)
 
-        create_and_join_prisms(c_l, thickness=thickness, distance=spacing / 2)
+        # Create the final mesh
+        mesh = bpy.data.meshes.new("Maze")
+        mesh.from_pydata(all_vertices, [], all_faces)
+        mesh.update()
 
-        # Join all octagon objects
-        bpy.ops.object.select_all(action='DESELECT')
-        for obj in octagon_objects:
-            obj.select_set(True)
-        bpy.context.view_layer.objects.active = octagon_objects[0]
-        bpy.ops.object.join()
+        obj = bpy.data.objects.new("Maze", mesh)
+        bpy.context.collection.objects.link(obj)
+
+        # Clean up the geometry
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.remove_doubles(threshold=0.0001)
+        bpy.ops.object.mode_set(mode="OBJECT")
 
 
 class MAZE_PT_generator_panel(bpy.types.Panel):
@@ -295,7 +268,8 @@ class MAZE_PT_generator_panel(bpy.types.Panel):
         layout.prop(props, "x_size")
         layout.prop(props, "y_size")
         layout.prop(props, "z_size")
-        layout.prop(props, "thickness")
+        layout.prop(props, "wall_thickness")
+        layout.prop(props, "wall_height")
         layout.prop(props, "spacing")
         layout.prop(props, "octagon_radius")
         layout.operator("mesh.generate_maze_popup")

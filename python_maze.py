@@ -11,6 +11,27 @@ class Maze:
             self.id = cell_id
             self.dimensions_sizes = dimensions_sizes
             self.links = set()
+            self._precalculate_neighbors()
+
+        def _precalculate_neighbors(self):
+            self.neighbors = {}
+            self.valid_directions = set()
+            coords = list(self.spatial(self.id))
+
+            for direction, (dim_index, offset) in {
+                "e": (0, 1),
+                "w": (0, -1),
+                "s": (1, 1),
+                "n": (1, -1),
+                "u": (2, 1),
+                "d": (2, -1),
+            }.items():
+                if 0 <= coords[dim_index] + offset < self.dimensions_sizes[dim_index]:
+                    new_coords = coords.copy()
+                    new_coords[dim_index] += offset
+                    neighbor_id = self._coords_to_id(new_coords)
+                    self.neighbors[direction] = neighbor_id
+                    self.valid_directions.add(direction)
 
         def connect(self, neighbor: int):
             self.links.add(neighbor)
@@ -22,6 +43,20 @@ class Maze:
                 coordinates.append((cell_id // divisor) % size)
                 divisor *= size
             return tuple(coordinates)
+
+        def has_link_in_direction(self, direction: str) -> bool:
+            return (
+                direction in self.valid_directions
+                and self.neighbors[direction] in self.links
+            )
+
+        def _coords_to_id(self, coords: List[int]) -> int:
+            cell_id = 0
+            multiplier = 1
+            for i, coord in enumerate(coords):
+                cell_id += coord * multiplier
+                multiplier *= self.dimensions_sizes[i]
+            return cell_id
 
     def __init__(
         self,
@@ -122,20 +157,52 @@ class Maze:
 
         return None
 
-    def connect_dead_ends(self):
+    def find_longest_dead_end_path(self) -> Optional[List[int]]:
         dead_ends = self.find_dead_ends()
         if len(dead_ends) < 2:
             self.out("Not enough dead ends to connect.")
-            return
+            return None
 
-        start, end = random.sample(dead_ends, 2)
-        self.out(f"Attempting to connect dead ends: {start} and {end}")
+        longest_path = []
+        all_paths = []
+        for start in dead_ends:
+            for end in dead_ends:
+                if start != end:
+                    path = self.find_path(start, end)
+                    if path:
+                        path_length = len(path)
+                        all_paths.append((start, end, path, path_length))
+                        if path_length > len(longest_path):
+                            longest_path = path
+                    else:
+                        self.out(f"No path found between dead ends {start} and {end}")
 
-        path = self.find_path(start, end)
-        if path:
-            self.out(f"Path found: {' -> '.join(map(str, path))}")
+        # Sort and display all paths
+        all_paths.sort(key=lambda x: x[3], reverse=True)
+        self.out("\nAll paths between dead ends (sorted by length):")
+        for start, end, path, length in all_paths:
+            self.out(
+                f"Dead ends {start} and {end}: "
+                f"path: {' -> '.join(map(str, path))}, "
+                f"length: {length}"
+            )
+        return longest_path
+
+    def connect_dead_ends(self):
+        longest_path = self.find_longest_dead_end_path()
+        if longest_path:
+            start, end = longest_path[0], longest_path[-1]
+            self.out(
+                f"Longest path found between dead ends {start} and {end}, "
+                f"path: {' -> '.join(map(str, longest_path))}, "
+                f"length: {len(longest_path)}"
+            )
+            # Connect the cells along the path
+            for i in range(len(longest_path) - 1):
+                self.get_cell(longest_path[i]).connect(longest_path[i + 1])
+                self.get_cell(longest_path[i + 1]).connect(longest_path[i])
         else:
-            raise ValueError(f"No path found between {start} and {end}")
+            self.out("No path found between dead ends.")
 
     def _out_verbose(self, content):
         if self._output_file:
