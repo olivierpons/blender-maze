@@ -1,11 +1,15 @@
-import random
 import argparse
-from pathlib import PurePath, Path
-from typing import Callable, List, Tuple, Optional, Set, Dict
+import itertools
+import random
 from collections import deque
+from copy import deepcopy
+from pathlib import PurePath, Path
+from typing import Callable, List, Tuple, Optional, Dict
+
+from tqdm import tqdm
 
 
-random.seed(41)
+# random.seed(41)
 
 
 class Maze:
@@ -74,11 +78,36 @@ class Maze:
         for size in self.dimensions_sizes:
             self.total_cells *= size
         self.cells: Dict[int, Maze.Cell] = {}
-        self.out: Callable[[str], None] = (
-            self._out_silent if silent else self._out_verbose
-        )
+        self._silent = silent
+        self._update_out()
+        self._update_display_maze_3d()
+        # self.out: Callable[[str], None] = (
+        #     self._out_silent if silent else self._out_verbose
+        # )
         self.display_maze_3d = (
             self._display_maze_3d_silent if silent else self._display_maze_3d_verbose
+        )
+
+    @property
+    def silent(self) -> bool:
+        return self._silent
+
+    @silent.setter
+    def silent(self, value: bool):
+        self._silent = value
+        self._update_out()
+        self._update_display_maze_3d()
+
+    def _update_out(self):
+        self.out: Callable[[str], None] = (
+            self._out_silent if self._silent else self._out_verbose
+        )
+
+    def _update_display_maze_3d(self):
+        self.display_maze_3d = (
+            self._display_maze_3d_silent
+            if self._silent
+            else self._display_maze_3d_verbose
         )
 
     def generate(self):
@@ -88,20 +117,20 @@ class Maze:
 
         while unvisited:
             cell = random.choice(list(unvisited))
-            path = self._wilson_walk(cell, unvisited)
-            self._add_path_to_maze(path)
-            unvisited -= set(path)
+            _path = self._wilson_walk(cell, unvisited)
+            self._add_path_to_maze(_path)
+            unvisited -= set(_path)
 
-    def _wilson_walk(self, start: int, unvisited: Set[int]) -> List[int]:
-        path = [start]
-        while path[-1] in unvisited:
-            neighbors = self.calculate_neighbors(path[-1])
-            next_cell = self._choose_next_cell(path, neighbors)
-            if next_cell in path:
-                path = path[: path.index(next_cell) + 1]
+    def _wilson_walk(self, start: int, unvisited: set[int]) -> List[int]:
+        result = [start]
+        while result[-1] in unvisited:
+            neighbors = self.calculate_neighbors(result[-1])
+            next_cell = self._choose_next_cell(result, neighbors)
+            if next_cell in result:
+                result = result[: result.index(next_cell) + 1]
             else:
-                path.append(next_cell)
-        return path
+                result.append(next_cell)
+        return result
 
     @staticmethod
     def _choose_next_cell(path: List[int], neighbors: List[int]) -> int:
@@ -149,54 +178,54 @@ class Maze:
         visited = {start}
 
         while queue:
-            current, path = queue.popleft()
+            current, result_path = queue.popleft()
             if current == end:
-                return path
+                return result_path
 
             for neighbor in self.get_cell(current).links:
                 if neighbor not in visited:
                     visited.add(neighbor)
-                    queue.append((neighbor, path + [neighbor]))
+                    queue.append((neighbor, result_path + [neighbor]))
 
         return None
 
     def find_longest_dead_end_path(self) -> Optional[List[int]]:
-        dead_ends = self.find_dead_ends()
-        if len(dead_ends) < 2:
+        result = self.find_dead_ends()
+        if len(result) < 2:
             self.out("Not enough dead ends to connect.")
             return None
 
         longest_path = []
         all_paths = []
-        for start in dead_ends:
-            for end in dead_ends:
-                if start != end:
-                    path = self.find_path(start, end)
-                    if path:
-                        path_length = len(path)
-                        all_paths.append((start, end, path, path_length))
-                        if path_length > len(longest_path):
-                            longest_path = path
+        for _start in result:
+            for _end in result:
+                if _start != _end:
+                    _path = self.find_path(_start, _end)
+                    if _path:
+                        _path_length = len(_path)
+                        all_paths.append((_start, _end, _path, _path_length))
+                        if _path_length > len(longest_path):
+                            longest_path = _path
                     else:
-                        self.out(f"No path found between dead ends {start} and {end}")
+                        self.out(f"No path found between dead ends {_start} and {_end}")
 
         # Sort and display all paths
         all_paths.sort(key=lambda x: x[3], reverse=True)
         self.out("\nAll paths between dead ends (sorted by length):")
-        for start, end, path, length in all_paths:
+        for _start, _end, _path, _length in all_paths:
             self.out(
-                f"Dead ends {start} and {end}: "
-                f"path: {' -> '.join(map(str, path))}, "
-                f"length: {length}"
+                f"Dead ends {_start} and {_end}: "
+                f"path: {' -> '.join(map(str, _path))}, "
+                f"length: {_length}"
             )
         return longest_path
 
     def connect_dead_ends(self):
         longest_path = self.find_longest_dead_end_path()
         if longest_path:
-            start, end = longest_path[0], longest_path[-1]
+            _start, _end = longest_path[0], longest_path[-1]
             self.out(
-                f"Longest path found between dead ends {start} and {end}, "
+                f"Longest path found between dead ends {_start} and {_end}, "
                 f"path: {' -> '.join(map(str, longest_path))}, "
                 f"length: {len(longest_path)}"
             )
@@ -287,6 +316,9 @@ def parse_arguments():
     parser.add_argument(
         "--clear", action="store_true", help="Clear the output file before writing"
     )
+    parser.add_argument(
+        "-n", "--total", type=int, default=100, help="Number of mazes to generate"
+    )
     return parser.parse_args()
 
 
@@ -300,11 +332,60 @@ if __name__ == "__main__":
         if g_output_file.exists():
             g_output_file.unlink()
 
-    maze = Maze(
-        sizes=[args.x, args.y, args.z],
-        output_file=output_path,
-        silent=bool(args.silent),
-    )
-    maze.generate()
-    maze.display_maze_3d()
-    maze.connect_dead_ends()
+    best_maze = None
+    longest_path_length = 0
+
+    g_all_paths = []
+    g_silent: bool = bool(args.silent)
+    # Create progress bar
+    pbar = tqdm(total=args.total, desc="Generating mazes", unit=" maze", disable=g_silent)
+    for g_i in range(args.total):
+        maze = Maze(
+            sizes=[args.x, args.y, args.z],
+            output_file=output_path,
+            silent=True,
+        )
+        maze.generate()
+
+        # Find and store all paths
+        dead_ends = maze.find_dead_ends()
+        maze_paths = []
+        for start in dead_ends:
+            for end in dead_ends:
+                if start != end:
+                    path = maze.find_path(start, end)
+                    if path:
+                        path_length = len(path)
+                        maze_paths.append((start, end, path, path_length))
+                        if path_length > longest_path_length:
+                            longest_path_length = path_length
+                            best_maze = maze
+                            g_all_paths = deepcopy(maze_paths)
+        # Update progress bar
+        if not g_silent:
+            pbar.set_postfix_str("best path: {}".format(longest_path_length))
+            pbar.update(1)
+    pbar.close()
+
+    if best_maze and g_all_paths:
+        # Display the best maze
+        best_maze.silent = bool(args.silent)
+        best_maze.out(
+            f"\nBest maze found (longest path length: {longest_path_length}):"
+        )
+        best_maze.display_maze_3d()
+
+        if args.silent:
+            # Sort and display all paths
+            g_all_paths.sort(key=lambda x: x[3], reverse=True)
+            g_longest_path = g_all_paths[0][2]
+            best_maze.silent = False
+            best_maze.out(
+                f"\nLongest path found between dead ends {g_longest_path[0]} and {g_longest_path[-1]}, "
+                f"path: {' -> '.join(map(str, g_longest_path))}, "
+                f"length: {len(g_longest_path)}"
+            )
+        else:
+            best_maze.connect_dead_ends()
+    else:
+        print("No valid maze was generated.")

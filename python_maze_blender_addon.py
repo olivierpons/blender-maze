@@ -41,9 +41,6 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
     spacing: bpy.props.FloatProperty(
         name="Cell Spacing", default=1.0, min=0.1, max=10.0
     )
-    octagon_radius: bpy.props.FloatProperty(
-        name="Octagon Radius", default=0.1, min=0.01, max=1.0
-    )
 
     def _out_verbose(self, content):
         if self._output_file:
@@ -61,7 +58,6 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
             self.wall_thickness,
             self.wall_height,
             self.spacing,
-            self.octagon_radius,
         )
         return {"FINISHED"}
 
@@ -81,41 +77,39 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
         layout.prop(self, "wall_thickness")
         layout.prop(self, "wall_height")
         layout.prop(self, "spacing")
-        layout.prop(self, "octagon_radius")
 
-    def generate_maze(self, context, x_size, y_size, z_size, wall_thickness, wall_height, spacing, octagon_radius):
+    def generate_maze(self, context, x_size, y_size, z_size, wall_thickness, wall_height, spacing):
         maze = Maze(sizes=[x_size, y_size, z_size])
         maze.generate()
 
         vertices = []
         faces = []
 
-        def add_octo(idx_x, idx_y, vz):
+        def add(idx_x, idx_y, vz):
+            wt_div_2 = wall_thickness / 2
             base_x = idx_x * spacing
             base_y = idx_y * spacing
-            vertices.append((base_x, base_y, vz))
-            for i in range(8):
-                angle = i * (2 * math.pi / 8) + (math.pi / 8)
-                vx = base_x + octagon_radius * math.cos(angle)
-                vy = base_y + octagon_radius * math.sin(angle)
-                vertices.append((vx, vy, vz))
+            vertices.append((base_x - wt_div_2, base_y - wt_div_2, vz))
+            vertices.append((base_x + wt_div_2, base_y - wt_div_2, vz))
+            vertices.append((base_x + wt_div_2, base_y + wt_div_2, vz))
+            vertices.append((base_x - wt_div_2, base_y + wt_div_2, vz))
 
         # Generate all vertices
         for z in range(z_size + 2):
             for y in range(y_size + 1):
                 for x in range(x_size + 1):
-                    add_octo(x, y, z * wall_height)
-                    add_octo(x, y, z * wall_height + wall_thickness)
+                    add(x, y, z * wall_height)
+                    add(x, y, z * wall_height + wall_thickness)
 
-        bottom = []
-        for y in range(y_size):
-            for x in range(x_size):
-                base = (y * x_size + x) * 18
-                bottom.append(base)
-        self.out(f"{bottom=}")
-        faces.append(bottom)
+        # done = False
+        for y in range(y_size + 1):
+            for x in range(x_size + 1):
+                base = (y * (x_size + 1) + x) * 8
+                faces.append([base, base + 1, base + 2])
+                if x <= x_size - 1:
+                    faces.append([base + 1, base + 8, base + 8 + 3, base + 2])
 
-        # # Create faces for walls
+        # Create faces for walls
         for z in range(z_size):
             for y in range(y_size):
                 for x in range(x_size):
@@ -188,7 +182,6 @@ class MAZE_PT_generator_panel(bpy.types.Panel):
         layout.prop(props, "wall_thickness")
         layout.prop(props, "wall_height")
         layout.prop(props, "spacing")
-        layout.prop(props, "octagon_radius")
         layout.operator("mesh.generate_maze_popup")
 
 
