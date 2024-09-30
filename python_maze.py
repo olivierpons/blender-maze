@@ -1,12 +1,18 @@
 import argparse
 import random
+import sys
 from collections import deque
 from copy import deepcopy
 from pathlib import PurePath, Path
 from typing import Callable, List, Tuple, Optional, Dict
 
-from tqdm import tqdm
-
+running_in_blender = 'bpy' in sys.modules
+if not running_in_blender:
+    from tqdm import tqdm
+else:
+    # Define a dummy tqdm function for use in Blender
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
 
 # random.seed(41)
 
