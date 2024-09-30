@@ -1,5 +1,4 @@
 import argparse
-import itertools
 import random
 from collections import deque
 from copy import deepcopy
@@ -121,32 +120,32 @@ class Maze:
             self._add_path_to_maze(_path)
             unvisited -= set(_path)
 
-    def _wilson_walk(self, start: int, unvisited: set[int]) -> List[int]:
-        result = [start]
-        while result[-1] in unvisited:
-            neighbors = self.calculate_neighbors(result[-1])
-            next_cell = self._choose_next_cell(result, neighbors)
-            if next_cell in result:
-                result = result[: result.index(next_cell) + 1]
+    def _wilson_walk(self, start_cell: int, unvisited: set[int]) -> List[int]:
+        current_path = [start_cell]
+        while current_path[-1] in unvisited:
+            current_cell = current_path[-1]
+            neighbors = self.calculate_neighbors(current_cell)
+            next_cell = self._choose_next_cell(current_path, neighbors)
+            if next_cell in current_path:
+                current_path = current_path[: current_path.index(next_cell) + 1]
             else:
-                result.append(next_cell)
-        return result
+                current_path.append(next_cell)
+        return current_path
 
     @staticmethod
-    def _choose_next_cell(path: List[int], neighbors: List[int]) -> int:
-        if len(path) > 1:
-            last_direction = path[-1] - path[-2]
-            same_direction = [n for n in neighbors if n - path[-1] == last_direction]
-            if (
-                same_direction and random.random() < 0.3
-            ):  # 30% chance to continue in the same direction
-                return random.choice(same_direction)
+    def _choose_next_cell(current_path: List[int], neighbors: List[int]) -> int:
+        if len(current_path) > 1:
+            last_dir = current_path[-1] - current_path[-2]
+            same_dir = [n for n in neighbors if n - current_path[-1] == last_dir]
+            # 30% chance to continue in the same direction:
+            if same_dir and random.random() < 0.3:
+                return random.choice(same_dir)
         return random.choice(neighbors)
 
-    def _add_path_to_maze(self, path: List[int]):
-        for i in range(len(path) - 1):
-            self.get_cell(path[i]).connect(path[i + 1])
-            self.get_cell(path[i + 1]).connect(path[i])
+    def _add_path_to_maze(self, path_to_add: List[int]):
+        for i in range(len(path_to_add) - 1):
+            self.get_cell(path_to_add[i]).connect(path_to_add[i + 1])
+            self.get_cell(path_to_add[i + 1]).connect(path_to_add[i])
 
     def get_cell(self, cell_id: int) -> Cell:
         if cell_id not in self.cells:
@@ -173,50 +172,59 @@ class Maze:
     def find_dead_ends(self) -> List[int]:
         return [cell_id for cell_id, cell in self.cells.items() if len(cell.links) == 1]
 
-    def find_path(self, start: int, end: int) -> Optional[List[int]]:
-        queue = deque([(start, [start])])
-        visited = {start}
+    def find_path(self, start_cell: int, end_cell: int) -> Optional[List[int]]:
+        queue = deque([(start_cell, [start_cell])])
+        visited = {start_cell}
 
         while queue:
-            current, result_path = queue.popleft()
-            if current == end:
-                return result_path
+            current_cell, current_path = queue.popleft()
+            if current_cell == end_cell:
+                return current_path
 
-            for neighbor in self.get_cell(current).links:
-                if neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append((neighbor, result_path + [neighbor]))
+            for neighbor_cell in self.get_cell(current_cell).links:
+                if neighbor_cell not in visited:
+                    visited.add(neighbor_cell)
+                    queue.append((neighbor_cell, current_path + [neighbor_cell]))
 
         return None
 
     def find_longest_dead_end_path(self) -> Optional[List[int]]:
-        result = self.find_dead_ends()
-        if len(result) < 2:
+        dead_end_cells = self.find_dead_ends()
+        if len(dead_end_cells) < 2:
             self.out("Not enough dead ends to connect.")
             return None
 
         longest_path = []
         all_paths = []
-        for _start in result:
-            for _end in result:
-                if _start != _end:
-                    _path = self.find_path(_start, _end)
-                    if _path:
-                        _path_length = len(_path)
-                        all_paths.append((_start, _end, _path, _path_length))
-                        if _path_length > len(longest_path):
-                            longest_path = _path
-                    else:
-                        self.out(f"No path found between dead ends {_start} and {_end}")
+
+        for i, start_cell in enumerate(dead_end_cells):
+            for end_cell in dead_end_cells[i + 1 :]:  # Only check pairs once
+                current_path = self.find_path(start_cell, end_cell)
+                if current_path:
+                    current_path_length = len(current_path)
+                    all_paths.append(
+                        (start_cell, end_cell, current_path, current_path_length)
+                    )
+                    if current_path_length > len(longest_path):
+                        longest_path = current_path
+                else:
+                    self.out(
+                        f"No path found between dead ends {start_cell} and {end_cell}"
+                    )
 
         # Sort and display all paths
         all_paths.sort(key=lambda x: x[3], reverse=True)
         self.out("\nAll paths between dead ends (sorted by length):")
-        for _start, _end, _path, _length in all_paths:
+        for (
+            start_cell,
+            end_cell,
+            path_between_ends,
+            path_length_between_ends,
+        ) in all_paths:
             self.out(
-                f"Dead ends {_start} and {_end}: "
-                f"path: {' -> '.join(map(str, _path))}, "
-                f"length: {_length}"
+                f"Dead ends {start_cell} and {end_cell}: "
+                f"path: {' -> '.join(map(str, path_between_ends))}, "
+                f"length: {path_length_between_ends}"
             )
         return longest_path
 
@@ -338,7 +346,9 @@ if __name__ == "__main__":
     g_all_paths = []
     g_silent: bool = bool(args.silent)
     # Create progress bar
-    pbar = tqdm(total=args.total, desc="Generating mazes", unit=" maze", disable=g_silent)
+    pbar = tqdm(
+        total=args.total, desc="Generating mazes", unit=" maze", disable=g_silent
+    )
     for g_i in range(args.total):
         maze = Maze(
             sizes=[args.x, args.y, args.z],
