@@ -70,6 +70,7 @@ class Maze:
         sizes: List[int],
         output_file: Path | str | None = None,
         silent: bool = False,
+        direction_weights: Dict[str, float] = None,
     ):
         self.dimensions_sizes = sizes
         self._output_file = output_file
@@ -86,6 +87,10 @@ class Maze:
         self.display_maze_3d = (
             self._display_maze_3d_silent if silent else self._display_maze_3d_verbose
         )
+        self.direction_weights = direction_weights or {
+            "e": 1, "w": 1, "s": 1, "n": 1, "u": 1, "d": 1
+        }
+
 
     @property
     def silent(self) -> bool:
@@ -132,14 +137,20 @@ class Maze:
                 current_path.append(next_cell)
         return current_path
 
-    @staticmethod
-    def _choose_next_cell(current_path: List[int], neighbors: List[int]) -> int:
+    def _choose_next_cell(self, current_path: List[int], neighbors: List[int]) -> int:
         if len(current_path) > 1:
-            last_dir = current_path[-1] - current_path[-2]
-            same_dir = [n for n in neighbors if n - current_path[-1] == last_dir]
-            # 30% chance to continue in the same direction:
-            if same_dir and random.random() < 0.3:
-                return random.choice(same_dir)
+            last_cell = current_path[-1]
+            current_cell = self.get_cell(last_cell)
+
+            weighted_neighbors = []
+            for direction, neighbor_id in current_cell.neighbors.items():
+                if neighbor_id in neighbors:
+                    weight = self.direction_weights[direction]
+                    weighted_neighbors.extend([neighbor_id] * int(weight * 10))
+
+            if weighted_neighbors:
+                return random.choice(weighted_neighbors)
+
         return random.choice(neighbors)
 
     def _add_path_to_maze(self, path_to_add: List[int]):
@@ -264,11 +275,27 @@ class Maze:
 
         x_size, y_size, z_size = self.dimensions_sizes
         layer_size = x_size * y_size
+        if layer_size * z_size > 1000:
+            display_cell_id_format = " {:<4}"
+            display_cell_links_format = " {:^7} {}"
+            wall_separator = "---------+"
+            empty_separator = "         +"
+        elif layer_size * z_size > 100:
+            display_cell_id_format = " {:<3}"
+            display_cell_links_format = " {:^6} {}"
+            wall_separator = "--------+"
+            empty_separator = "        +"
+        else:
+            display_cell_id_format = " {:<2}"
+            display_cell_links_format = " {:^5} {}"
+            wall_separator = "-------+"
+            empty_separator = "       +"
 
         range_z_size = range(z_size)
+        print(display_cell_links_format)
         for layer in range_z_size:
             self.out(f"Layer {layer + 1}/{len(range_z_size)}")
-            self.out("+" + "-------+" * x_size)
+            self.out("+" + wall_separator * x_size)
             for y in range(y_size):
                 top = "|"
                 bottom = "+"
@@ -282,14 +309,14 @@ class Maze:
                     if (cell_id + x_size) in cell.links and (
                         cell_id + x_size < self.total_cells
                     ):
-                        bottom += "       +"
+                        bottom += empty_separator
                     else:
-                        bottom += "-------+"
-                    vert_marker = " {:<2}".format(cell_id)
+                        bottom += wall_separator
+                    vert_marker = display_cell_id_format.format(cell_id)
                     vert_marker += "*" if len(cell.links) == 1 else " "
                     vert_marker += "." if (cell_id - layer_size) in cell.links else " "
                     vert_marker += "o" if (cell_id + layer_size) in cell.links else " "
-                    top += f" {vert_marker.strip():^5} " + right
+                    top += display_cell_links_format.format(vert_marker.strip(), right)
                 self.out(top)
                 self.out(bottom)
 
@@ -327,12 +354,25 @@ def parse_arguments():
     parser.add_argument(
         "-n", "--total", type=int, default=100, help="Number of mazes to generate"
     )
+    parser.add_argument("--weight-e", type=float, default=1.0, help="Weight for east direction")
+    parser.add_argument("--weight-w", type=float, default=1.0, help="Weight for west direction")
+    parser.add_argument("--weight-s", type=float, default=1.0, help="Weight for south direction")
+    parser.add_argument("--weight-n", type=float, default=1.0, help="Weight for north direction")
+    parser.add_argument("--weight-u", type=float, default=1.0, help="Weight for up direction")
+    parser.add_argument("--weight-d", type=float, default=1.0, help="Weight for down direction")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_arguments()
-
+    g_direction_weights = {
+        "e": args.weight_e,
+        "w": args.weight_w,
+        "s": args.weight_s,
+        "n": args.weight_n,
+        "u": args.weight_u,
+        "d": args.weight_d
+    }
     output_path = PurePath(args.output) if args.output else None
 
     if output_path and args.clear:
@@ -354,6 +394,7 @@ if __name__ == "__main__":
             sizes=[args.x, args.y, args.z],
             output_file=output_path,
             silent=True,
+            direction_weights=g_direction_weights,
         )
         maze.generate()
 
@@ -380,6 +421,7 @@ if __name__ == "__main__":
     if best_maze and g_all_paths:
         # Display the best maze
         best_maze.silent = bool(args.silent)
+        best_maze.silent = False
         best_maze.out(
             f"\nBest maze found (longest path length: {longest_path_length}):"
         )
@@ -391,7 +433,8 @@ if __name__ == "__main__":
             g_longest_path = g_all_paths[0][2]
             best_maze.silent = False
             best_maze.out(
-                f"\nLongest path found between dead ends {g_longest_path[0]} and {g_longest_path[-1]}, "
+                f"\nLongest path found between "
+                f"dead ends {g_longest_path[0]} and {g_longest_path[-1]}, "
                 f"path: {' -> '.join(map(str, g_longest_path))}, "
                 f"length: {len(g_longest_path)}"
             )
