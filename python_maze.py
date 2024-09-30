@@ -11,7 +11,7 @@ if not running_in_blender:
     from tqdm import tqdm
 else:
     # Define a dummy tqdm function for use in Blender
-    def tqdm(iterable, *args, **kwargs):
+    def tqdm(iterable):
         return iterable
 
 # random.seed(41)
@@ -215,7 +215,7 @@ class Maze:
         all_paths = []
 
         for i, start_cell in enumerate(dead_end_cells):
-            for end_cell in dead_end_cells[i + 1 :]:  # Only check pairs once
+            for end_cell in dead_end_cells[i + 1:]:  # Only check pairs once
                 current_path = self.find_path(start_cell, end_cell)
                 if current_path:
                     current_path_length = len(current_path)
@@ -298,7 +298,6 @@ class Maze:
             empty_separator = "       +"
 
         range_z_size = range(z_size)
-        print(display_cell_links_format)
         for layer in range_z_size:
             self.out(f"Layer {layer + 1}/{len(range_z_size)}")
             self.out("+" + wall_separator * x_size)
