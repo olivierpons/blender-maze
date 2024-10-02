@@ -106,35 +106,46 @@ class MAZE_OT_generator_popup(bpy.types.Operator):
                     vertices.append((c_x_add_2, c_y_add_2, c_z_add_2))
                     vertices.append((c_x_sub_2, c_y_add_2, c_z_add_2))
 
-        print(', '.join([f"{idx}: {a}" for idx, a in enumerate(vertices)]))
+        print(", ".join([f"{idx}: {a}" for idx, a in enumerate(vertices)]))
         print(f"{len(vertices)}")
+        # Create faces for walls
         # Create faces for walls
         for z in range(z_size):
             for y in range(y_size):
                 for x in range(x_size):
                     base = (x + y * x_size + z * x_size * y_size) * 8
-                    print(f"{base=}, {[base + 0, base + 1, base + 2, base + 3]=}")
                     cell_id = x + y * x_size + z * (x_size * y_size)
                     cell = maze.get_cell(cell_id)
+                    print(str(cell))
+
                     # North wall
-                    if (y == 0) or (y > 0 and not cell.has_link_in_direction("n")):
+                    if y == y_size - 1 or not cell.has_link_in_direction("n"):
                         faces.append([base + 2, base + 3, base + 7, base + 6])
+
                     # East wall
-                    if (x == x_size - 1) or (x < x_size - 1 and not cell.has_link_in_direction("e")):
+                    if x == x_size - 1 or not cell.has_link_in_direction("e"):
                         faces.append([base + 1, base + 2, base + 6, base + 5])
+
                     # South wall
-                    if (y == y_size - 1) or (y < y_size - 1 and not cell.has_link_in_direction("s")):
+                    if y == 0 or not cell.has_link_in_direction("s"):
                         faces.append([base + 0, base + 1, base + 5, base + 4])
+
                     # West wall
-                    if (x == 0) or (x > 0 and not cell.has_link_in_direction("w")):
+                    if x == 0 or not cell.has_link_in_direction("w"):
                         faces.append([base + 0, base + 3, base + 7, base + 4])
+
                     # Up wall
-                    if (z == z_size - 1) or (z < z_size - 1 and not cell.has_link_in_direction("u")):
-                        faces.append([base + 4, base + 5, base + 6, base + 7])
+                    # if z == z_size - 1 or not cell.has_link_in_direction("u"):
+                    #     faces.append([base + 4, base + 5, base + 6, base + 7])
+
                     # Down wall
-                    if (z == 0) or (z > 0 and not cell.has_link_in_direction("d")):
+                    if z == 0 or not cell.has_link_in_direction("d"):
                         faces.append([base + 0, base + 1, base + 2, base + 3])
 
+                    # Log information for debugging
+                    print(f"Cell {cell_id} at ({x}, {y}, {z}):")
+                    print(f"  Links: {cell.links}")
+                    print(f"  Faces: {faces[-6:]}")
         # Create the mesh
         mesh = bpy.data.meshes.new("Maze")
         mesh.from_pydata(vertices, [], faces)
