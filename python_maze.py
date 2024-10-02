@@ -6,13 +6,14 @@ from copy import deepcopy
 from pathlib import PurePath, Path
 from typing import Callable, List, Tuple, Optional, Dict
 
-running_in_blender = 'bpy' in sys.modules
+running_in_blender = "bpy" in sys.modules
 if not running_in_blender:
     from tqdm import tqdm
 else:
     # Define a dummy tqdm function for use in Blender
     def tqdm(iterable):
         return iterable
+
 
 # random.seed(41)
 
@@ -70,6 +71,17 @@ class Maze:
                 multiplier *= self.dimensions_sizes[i]
             return cell_id
 
+        def __str__(self) -> str:
+            coords = self.spatial(self.id)
+            coords_str = ",".join(map(str, coords))
+
+            directions = "ewsnud"
+            openings = "".join(
+                d if self.has_link_in_direction(d) else "." for d in directions
+            )
+
+            return f"({coords_str}) {openings}"
+
     def __init__(
         self,
         *,
@@ -94,9 +106,13 @@ class Maze:
             self._display_maze_3d_silent if silent else self._display_maze_3d_verbose
         )
         self.direction_weights = direction_weights or {
-            "e": 1, "w": 1, "s": 1, "n": 1, "u": 1, "d": 1
+            "e": 1,
+            "w": 1,
+            "s": 1,
+            "n": 1,
+            "u": 1,
+            "d": 1,
         }
-
 
     @property
     def silent(self) -> bool:
@@ -215,7 +231,7 @@ class Maze:
         all_paths = []
 
         for i, start_cell in enumerate(dead_end_cells):
-            for end_cell in dead_end_cells[i + 1:]:  # Only check pairs once
+            for end_cell in dead_end_cells[i + 1 :]:  # Only check pairs once
                 current_path = self.find_path(start_cell, end_cell)
                 if current_path:
                     current_path_length = len(current_path)
@@ -359,12 +375,24 @@ def parse_arguments():
     parser.add_argument(
         "-n", "--total", type=int, default=100, help="Number of mazes to generate"
     )
-    parser.add_argument("--weight-e", type=float, default=1.0, help="Weight for east direction")
-    parser.add_argument("--weight-w", type=float, default=1.0, help="Weight for west direction")
-    parser.add_argument("--weight-s", type=float, default=1.0, help="Weight for south direction")
-    parser.add_argument("--weight-n", type=float, default=1.0, help="Weight for north direction")
-    parser.add_argument("--weight-u", type=float, default=1.0, help="Weight for up direction")
-    parser.add_argument("--weight-d", type=float, default=1.0, help="Weight for down direction")
+    parser.add_argument(
+        "--weight-e", type=float, default=1.0, help="Weight for east direction"
+    )
+    parser.add_argument(
+        "--weight-w", type=float, default=1.0, help="Weight for west direction"
+    )
+    parser.add_argument(
+        "--weight-s", type=float, default=1.0, help="Weight for south direction"
+    )
+    parser.add_argument(
+        "--weight-n", type=float, default=1.0, help="Weight for north direction"
+    )
+    parser.add_argument(
+        "--weight-u", type=float, default=1.0, help="Weight for up direction"
+    )
+    parser.add_argument(
+        "--weight-d", type=float, default=1.0, help="Weight for down direction"
+    )
     return parser.parse_args()
 
 
@@ -376,7 +404,7 @@ if __name__ == "__main__":
         "s": args.weight_s,
         "n": args.weight_n,
         "u": args.weight_u,
-        "d": args.weight_d
+        "d": args.weight_d,
     }
     output_path = PurePath(args.output) if args.output else None
 
