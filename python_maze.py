@@ -180,7 +180,7 @@ class Maze:
             self.get_cell(path_to_add[i]).connect(path_to_add[i + 1])
             self.get_cell(path_to_add[i + 1]).connect(path_to_add[i])
 
-    def get_cell(self, cell_id: int) -> Cell:
+    def get_cell(self, cell_id: int) -> Cell | None:
         if cell_id not in self.cells:
             self.cells[cell_id] = Maze.Cell(cell_id, self.dimensions_sizes)
         return self.cells[cell_id]
